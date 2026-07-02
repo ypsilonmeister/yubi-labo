@@ -6,14 +6,16 @@ import { StartScreen } from './screens/StartScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { FarmScreen } from './screens/FarmScreen';
 import { EndScreen } from './screens/EndScreen';
+import { ZukanScreen } from './screens/ZukanScreen';
 import { MazeGame } from '../games/maze/MazeGame';
+import { KanjiGame } from '../games/kanji/KanjiGame';
 import { audioGuide } from '../core/audio/AudioGuide';
 import { SessionTimer } from '../core/engine/SessionTimer';
 import { selectLaunchHighlights, type Highlight } from '../core/engine/highlights';
 import { detectPointerKind } from '../core/input/PointerSource';
 import { getSetting, saveSession, type PlayRecord, type SessionRecord } from '../core/storage/db';
 
-type Screen = 'start' | 'launch-highlight' | 'home' | 'maze' | 'farm' | 'end';
+type Screen = 'start' | 'launch-highlight' | 'home' | 'maze' | 'kanji' | 'farm' | 'zukan' | 'end';
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('start');
@@ -70,7 +72,13 @@ export function App() {
     timerRef.current?.start();
   }, []);
 
+  const openKanji = useCallback(() => {
+    setScreen('kanji');
+    timerRef.current?.start();
+  }, []);
+
   const openFarm = useCallback(() => setScreen('farm'), []);
+  const openZukan = useCallback(() => setScreen('zukan'), []);
   const backHome = useCallback(() => setScreen('home'), []);
 
   const recordPlay = useCallback((play: PlayRecord) => {
@@ -89,15 +97,28 @@ export function App() {
 
   return (
     <Stage>
-      {(screen === 'home' || screen === 'maze') && <VisualTimer ratio={ratio} blink={blink} />}
+      {(screen === 'home' || screen === 'maze' || screen === 'kanji') && (
+        <VisualTimer ratio={ratio} blink={blink} />
+      )}
       {screen === 'start' && <StartScreen onBegin={begin} />}
       {screen === 'launch-highlight' && (
         <HighlightPlayer highlights={launchHighlights} withIntro onDone={goHome} />
       )}
-      {screen === 'home' && <HomeScreen onOpenMaze={openMaze} onOpenFarm={openFarm} />}
+      {screen === 'home' && (
+        <HomeScreen
+          onOpenMaze={openMaze}
+          onOpenKanji={openKanji}
+          onOpenFarm={openFarm}
+          onOpenZukan={openZukan}
+        />
+      )}
       {screen === 'farm' && <FarmScreen onBack={backHome} />}
+      {screen === 'zukan' && <ZukanScreen onBack={backHome} />}
       {screen === 'maze' && (
         <MazeGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
+      )}
+      {screen === 'kanji' && (
+        <KanjiGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
       )}
       {screen === 'end' && <EndScreen session={sessionRef.current} />}
     </Stage>

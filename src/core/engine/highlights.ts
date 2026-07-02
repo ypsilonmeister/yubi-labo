@@ -29,6 +29,14 @@ export function selectHighlights(
 
   const pastPlays = history.flatMap((s) => s.plays).filter((p) => p.completed);
 
+  // ①初完成の漢字（モードB）: 初めて組み上がった瞬間を最優先で見せる
+  const firstKanji = completed.filter(
+    (p) => p.game === 'kanji' && p.metrics['firstComplete'] === true,
+  );
+  for (const p of firstKanji) {
+    if (picks.length < max) picks.push({ play: p, reason: 'first-kanji' });
+  }
+
   // ②自己ベスト: 過去より低い outRatio、または過去最高レベルの更新
   const pastBestOut = Math.min(
     ...pastPlays.map((p) => mazeOutRatio(p) ?? Infinity),
@@ -44,7 +52,9 @@ export function selectHighlights(
     .sort((a, b) => levelNumber(b) - levelNumber(a))[0];
 
   const selfBest = newLevelPlay ?? bestOutPlay;
-  if (selfBest) picks.push({ play: selfBest, reason: 'self-best' });
+  if (selfBest && !picks.some((h) => h.play === selfBest)) {
+    picks.push({ play: selfBest, reason: 'self-best' });
+  }
 
   // ③最後にクリアしたレベル
   const last = completed[completed.length - 1];

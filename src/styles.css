@@ -159,6 +159,72 @@ body {
   margin-top: -20px;
 }
 
+.home-row {
+  display: flex;
+  gap: 80px;
+}
+
+.zukan-button {
+  position: absolute;
+  left: 32px;
+  bottom: 32px;
+  width: 120px;
+  height: 120px;
+  font-size: 60px;
+}
+
+/* ぶんしずかん（SPEC §6.5）: 分子カードのグリッド */
+.zukan-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 180px);
+  gap: 28px;
+}
+
+.zukan-card {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border: none;
+  border-radius: 26px;
+  background: rgba(247, 243, 232, 0.94);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.zukan-card:hover,
+.zukan-card:focus-visible {
+  transform: scale(1.05);
+}
+
+.zukan-card.mastered {
+  background: linear-gradient(160deg, #fff4d6 0%, #ffe9a8 100%);
+  box-shadow: 0 0 32px rgba(255, 214, 110, 0.55);
+}
+
+.zukan-card.empty {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+  cursor: default;
+}
+
+.zukan-char {
+  font-family: 'UD デジタル 教科書体 N-R', 'UD Digi Kyokasho N-R', 'Klee One', serif;
+  font-size: 110px;
+  color: #2b2b33;
+  line-height: 1;
+}
+
+.zukan-star {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 34px;
+}
+
 .end-moon {
   font-size: 200px;
   filter: drop-shadow(0 0 60px rgba(180, 200, 255, 0.5));

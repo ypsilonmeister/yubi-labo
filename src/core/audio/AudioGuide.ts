@@ -71,6 +71,16 @@ class AudioGuide {
     audio.play().catch(fallback);
   }
 
+  // データ由来の動的文（漢字の読み・成り立ちストーリー等）を直接読み上げる
+  speakText(text: string): void {
+    const now = performance.now();
+    if (text === this.lastKey && now - this.lastAt < 3000) return;
+    this.lastKey = text;
+    this.lastAt = now;
+    this.stopCurrent();
+    this.tts(text);
+  }
+
   // 柔らかい肯定系の効果音（ブザー系禁止、SPEC §3.2）
   chime(): void {
     const ctx = this.audioCtx;

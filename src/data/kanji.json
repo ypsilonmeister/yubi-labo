@@ -1,0 +1,147 @@
+[
+  {
+    "id": "kanji-hayashi",
+    "char": "林",
+    "reading": "はやし",
+    "storyText": "きが 2ほん ならんで はやし に なるよ",
+    "grade": 1,
+    "meaningEmoji": ["🌳", "🌳🌳"],
+    "parts": [
+      { "glyph": "木", "zone": { "x": 0.02, "y": 0.08, "w": 0.46, "h": 0.84 }, "spokenName": "き" },
+      { "glyph": "木", "zone": { "x": 0.52, "y": 0.08, "w": 0.46, "h": 0.84 }, "spokenName": "き" }
+    ]
+  },
+  {
+    "id": "kanji-mori",
+    "char": "森",
+    "reading": "もり",
+    "storyText": "きが うえに 1ぽん、したに 2ほん あつまって もりに なるよ",
+    "grade": 1,
+    "meaningEmoji": ["🌳🌳", "🌳🌳🌳"],
+    "parts": [
+      { "glyph": "木", "zone": { "x": 0.27, "y": 0.02, "w": 0.46, "h": 0.48 }, "spokenName": "き" },
+      { "glyph": "木", "zone": { "x": 0.02, "y": 0.52, "w": 0.46, "h": 0.46 }, "spokenName": "き" },
+      { "glyph": "木", "zone": { "x": 0.52, "y": 0.52, "w": 0.46, "h": 0.46 }, "spokenName": "き" }
+    ]
+  },
+  {
+    "id": "kanji-yasumu",
+    "char": "休",
+    "reading": "やすむ",
+    "storyText": "ひとが きの よこで やすんでる じ だよ",
+    "grade": 1,
+    "meaningEmoji": ["🧍🌳", "😌"],
+    "parts": [
+      { "glyph": "亻", "zone": { "x": 0.02, "y": 0.06, "w": 0.3, "h": 0.88 }, "spokenName": "にんべん" },
+      { "glyph": "木", "zone": { "x": 0.34, "y": 0.06, "w": 0.64, "h": 0.88 }, "spokenName": "き" }
+    ]
+  },
+  {
+    "id": "kanji-hon",
+    "char": "本",
+    "reading": "ほん",
+    "storyText": "きの ねもとに いちを かいて ほん に なるよ",
+    "grade": 1,
+    "meaningEmoji": ["🌳", "📖"],
+    "parts": [
+      { "glyph": "木", "zone": { "x": 0.06, "y": 0.02, "w": 0.88, "h": 0.78 }, "spokenName": "き" },
+      { "glyph": "一", "zone": { "x": 0.22, "y": 0.8, "w": 0.56, "h": 0.16 }, "spokenName": "いち" }
+    ]
+  },
+  {
+    "id": "kanji-ta",
+    "char": "田",
+    "reading": "た",
+    "storyText": "しかくい くちに じゅうを いれて たんぼ の た が できるよ",
+    "grade": 1,
+    "meaningEmoji": ["🟩", "🌾"],
+    "parts": [
+      { "glyph": "口", "zone": { "x": 0.08, "y": 0.06, "w": 0.84, "h": 0.88 }, "spokenName": "くち" },
+      { "glyph": "十", "zone": { "x": 0.08, "y": 0.06, "w": 0.84, "h": 0.88 }, "spokenName": "じゅう" }
+    ]
+  },
+  {
+    "id": "kanji-otoko",
+    "char": "男",
+    "reading": "おとこ",
+    "storyText": "たんぼで ちからを だして はたらく ひとが おとこ だよ",
+    "grade": 1,
+    "meaningEmoji": ["🌾💪", "👦"],
+    "parts": [
+      { "glyph": "田", "zone": { "x": 0.14, "y": 0.04, "w": 0.72, "h": 0.48 }, "spokenName": "た" },
+      { "glyph": "力", "zone": { "x": 0.14, "y": 0.52, "w": 0.72, "h": 0.44 }, "spokenName": "ちから" }
+    ]
+  },
+  {
+    "id": "kanji-oto",
+    "char": "音",
+    "reading": "おと",
+    "storyText": "たつの したに ひを おくと おと の じ に なるよ",
+    "grade": 1,
+    "meaningEmoji": ["🎵", "🔊"],
+    "parts": [
+      { "glyph": "立", "zone": { "x": 0.1, "y": 0.04, "w": 0.8, "h": 0.46 }, "spokenName": "たつ" },
+      { "glyph": "日", "zone": { "x": 0.24, "y": 0.52, "w": 0.52, "h": 0.44 }, "spokenName": "ひ" }
+    ]
+  },
+  {
+    "id": "kanji-hayai",
+    "char": "早",
+    "reading": "はやい",
+    "storyText": "ひが じゅうの うえに あがって はやい あさ に なるよ",
+    "grade": 1,
+    "meaningEmoji": ["🌌", "🌅"],
+    "parts": [
+      { "glyph": "日", "zone": { "x": 0.28, "y": 0.04, "w": 0.44, "h": 0.46 }, "spokenName": "ひ" },
+      { "glyph": "十", "zone": { "x": 0.1, "y": 0.5, "w": 0.8, "h": 0.46 }, "spokenName": "じゅう" }
+    ]
+  },
+  {
+    "id": "kanji-akarui",
+    "char": "明",
+    "reading": "あかるい",
+    "storyText": "ひと つきが ならんで あかるく なる じ だよ",
+    "grade": 1,
+    "meaningEmoji": ["🌞🌙", "✨"],
+    "parts": [
+      { "glyph": "日", "zone": { "x": 0.06, "y": 0.1, "w": 0.4, "h": 0.8 }, "spokenName": "ひ" },
+      { "glyph": "月", "zone": { "x": 0.5, "y": 0.04, "w": 0.44, "h": 0.92 }, "spokenName": "つき" }
+    ]
+  },
+  {
+    "id": "kanji-iwa",
+    "char": "岩",
+    "reading": "いわ",
+    "storyText": "やまの したに おおきな いしが あって いわ に なるよ",
+    "grade": 1,
+    "meaningEmoji": ["⛰️", "🪨"],
+    "parts": [
+      { "glyph": "山", "zone": { "x": 0.18, "y": 0.04, "w": 0.64, "h": 0.4 }, "spokenName": "やま" },
+      { "glyph": "石", "zone": { "x": 0.1, "y": 0.46, "w": 0.8, "h": 0.5 }, "spokenName": "いし" }
+    ]
+  },
+  {
+    "id": "kanji-hana",
+    "char": "花",
+    "reading": "はな",
+    "storyText": "くさかんむりの したで ばけると きれいな はな に なるよ",
+    "grade": 1,
+    "meaningEmoji": ["🌱", "🌸"],
+    "parts": [
+      { "glyph": "⺾", "zone": { "x": 0.1, "y": 0.04, "w": 0.8, "h": 0.26 }, "spokenName": "くさかんむり" },
+      { "glyph": "化", "zone": { "x": 0.1, "y": 0.32, "w": 0.8, "h": 0.64 }, "spokenName": "ばける" }
+    ]
+  },
+  {
+    "id": "kanji-kusa",
+    "char": "草",
+    "reading": "くさ",
+    "storyText": "くさかんむりの したに はやいが あって くさ に なるよ",
+    "grade": 1,
+    "meaningEmoji": ["🌱", "🌿"],
+    "parts": [
+      { "glyph": "⺾", "zone": { "x": 0.1, "y": 0.04, "w": 0.8, "h": 0.24 }, "spokenName": "くさかんむり" },
+      { "glyph": "早", "zone": { "x": 0.14, "y": 0.3, "w": 0.72, "h": 0.66 }, "spokenName": "はやい" }
+    ]
+  }
+]
