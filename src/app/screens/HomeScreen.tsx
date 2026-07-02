@@ -5,6 +5,7 @@ import type { InputMode } from '../../core/input/inputProvider';
 export function HomeScreen({
   onOpenMaze,
   onOpenKanji,
+  onOpenMoji,
   onOpenFarm,
   onOpenZukan,
   inputMode,
@@ -13,6 +14,7 @@ export function HomeScreen({
 }: {
   onOpenMaze: () => void;
   onOpenKanji: () => void;
+  onOpenMoji: () => void;
   onOpenFarm: () => void;
   onOpenZukan: () => void;
   inputMode: InputMode;
@@ -27,6 +29,9 @@ export function HomeScreen({
         </button>
         <button className="icon-button game-card" onClick={onOpenKanji} aria-label="かんじこうじょう">
           🧬
+        </button>
+        <button className="icon-button game-card" onClick={onOpenMoji} aria-label="もじさがし">
+          🔍
         </button>
       </div>
       <div className="input-corner">

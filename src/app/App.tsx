@@ -11,6 +11,7 @@ import { ZukanScreen } from './screens/ZukanScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
 import { MazeGame } from '../games/maze/MazeGame';
 import { KanjiGame } from '../games/kanji/KanjiGame';
+import { MojiGame } from '../games/moji/MojiGame';
 import { audioGuide } from '../core/audio/AudioGuide';
 import { SessionTimer } from '../core/engine/SessionTimer';
 import { selectLaunchHighlights, type Highlight } from '../core/engine/highlights';
@@ -30,6 +31,7 @@ type Screen =
   | 'home'
   | 'maze'
   | 'kanji'
+  | 'moji'
   | 'farm'
   | 'zukan'
   | 'calibrate'
@@ -109,6 +111,11 @@ export function App() {
     timerRef.current?.start();
   }, []);
 
+  const openMoji = useCallback(() => {
+    setScreen('moji');
+    timerRef.current?.start();
+  }, []);
+
   const openFarm = useCallback(() => setScreen('farm'), []);
   const openZukan = useCallback(() => setScreen('zukan'), []);
   const backHome = useCallback(() => setScreen('home'), []);
@@ -132,7 +139,7 @@ export function App() {
   // §4.2.5 原則7: ロストは機器の問題として提示し、ゲームを自動ポーズ
   const handleTrackStatus = useCallback((s: 'tracking' | 'lost') => {
     setHandStatus(s);
-    const inGame = screenRef.current === 'maze' || screenRef.current === 'kanji';
+    const inGame = screenRef.current === 'maze' || screenRef.current === 'kanji' || screenRef.current === 'moji';
     if (s === 'lost') {
       if (inGame && overlayRef.current === 'none') {
         timerRef.current?.pause();
@@ -206,7 +213,7 @@ export function App() {
 
   // §4.2.6 疲労対策: ハンド入力で連続90秒プレイ → 10秒の「ひとやすみ」
   useEffect(() => {
-    const inGame = screen === 'maze' || screen === 'kanji';
+    const inGame = screen === 'maze' || screen === 'kanji' || screen === 'moji';
     if (inputMode !== 'hand' || !inGame) {
       handUseSecRef.current = 0;
       return;
@@ -229,7 +236,7 @@ export function App() {
     return () => window.clearInterval(iv);
   }, [screen, inputMode, overlay]);
 
-  const inGame = screen === 'maze' || screen === 'kanji';
+  const inGame = screen === 'maze' || screen === 'kanji' || screen === 'moji';
 
   return (
     <Stage>
@@ -242,6 +249,7 @@ export function App() {
         <HomeScreen
           onOpenMaze={openMaze}
           onOpenKanji={openKanji}
+          onOpenMoji={openMoji}
           onOpenFarm={openFarm}
           onOpenZukan={openZukan}
           inputMode={inputMode}
@@ -262,6 +270,7 @@ export function App() {
           <HomeScreen
             onOpenMaze={openMaze}
             onOpenKanji={openKanji}
+            onOpenMoji={openMoji}
             onOpenFarm={openFarm}
             onOpenZukan={openZukan}
             inputMode={inputMode}
@@ -274,6 +283,9 @@ export function App() {
       )}
       {screen === 'kanji' && (
         <KanjiGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
+      )}
+      {screen === 'moji' && (
+        <MojiGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
       )}
       {screen === 'end' && <EndScreen session={sessionRef.current} />}
 

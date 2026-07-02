@@ -34,6 +34,8 @@ const SCRIPTS: Record<string, string> = {
   'moji.correct': '{char}！ せいかい！',
   'moji.other': 'それは {char} だね。{target} を さがしてみよう',
   'moji.challenge.end': 'しゅうりょう〜！ きょうは ほし {n} こ！',
+  'moji.set.clear': 'ほしが たまったね！ いい ちょうし！',
+  'moji.challenge.start': 'スタート！ すきなだけ さがそう！',
   'common.stuck': 'ちょっと むずかしいね。いっしょに やってみよう',
   'dummy.intro': 'ひかる ほしを ゆびで さわってみよう',
 };
