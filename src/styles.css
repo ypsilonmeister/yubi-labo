@@ -225,6 +225,147 @@ body {
   font-size: 34px;
 }
 
+/* ── P3 ハンドトラッキング（SPEC §4.2）───────────────────── */
+
+.input-corner {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  gap: 16px;
+}
+
+.input-toggle {
+  width: 88px;
+  height: 88px;
+  font-size: 44px;
+  border-radius: 50%;
+}
+
+/* 検出状態アイコン: 緑=検出中、グレー=ロスト（§4.2.1） */
+.hand-status-icon {
+  position: absolute;
+  top: 132px;
+  right: 32px;
+  font-size: 40px;
+  z-index: 20;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.hand-status-icon.ok {
+  filter: drop-shadow(0 0 12px rgba(120, 230, 140, 0.9));
+}
+
+.hand-status-icon.lost {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+/* ドウェル進捗リング（§4.2.4）: ドーナツ型 conic-gradient */
+.dwell-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 15;
+  display: none;
+  -webkit-mask: radial-gradient(circle, transparent 24px, #000 25px);
+  mask: radial-gradient(circle, transparent 24px, #000 25px);
+}
+
+/* キャリブレーション（§4.2.2） */
+.calib-screen {
+  position: absolute;
+  inset: 0;
+}
+
+.calib-star {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 72px;
+  opacity: 0.35;
+}
+
+.calib-star.current {
+  opacity: 1;
+  animation: soft-blink 1.6s ease-in-out infinite;
+}
+
+.calib-star.captured {
+  opacity: 0.8;
+}
+
+.calib-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(circle, transparent 52px, #000 53px);
+  mask: radial-gradient(circle, transparent 52px, #000 53px);
+}
+
+/* シェル層オーバーレイ: ロスト（§4.2.5）/ひとやすみ（§4.2.6） */
+.shell-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  background: rgba(11, 15, 20, 0.82);
+}
+
+.overlay-icon {
+  font-size: 160px;
+}
+
+.overlay-sub {
+  font-size: 80px;
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.rest-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.count-dots {
+  display: flex;
+  gap: 28px;
+  font-size: 40px;
+  color: rgba(180, 235, 190, 0.9);
+}
+
+.count-dots span {
+  animation: dot-fade 1s linear forwards;
+}
+
+.count-dots span:nth-child(2) {
+  animation-delay: 1s;
+}
+
+.count-dots span:nth-child(3) {
+  animation-delay: 2s;
+}
+
+@keyframes dot-fade {
+  0%,
+  99% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.15;
+  }
+}
+
 .end-moon {
   font-size: 200px;
   filter: drop-shadow(0 0 60px rgba(180, 200, 255, 0.5));

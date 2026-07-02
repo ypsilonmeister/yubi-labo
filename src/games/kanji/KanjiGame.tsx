@@ -1,11 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { LOGICAL_W, LOGICAL_H } from '../../core/coords';
 import { audioGuide } from '../../core/audio/AudioGuide';
-import {
-  PointerEventSource,
-  detectPointerKind,
-  type PointerState,
-} from '../../core/input/PointerSource';
+import type { PointerState } from '../../core/input/PointerSource';
+import { createPointerSource } from '../../core/input/inputProvider';
 import { ReplayRecorder } from '../../core/engine/ReplayRecorder';
 import type { PlayRecord } from '../../core/storage/db';
 import { KANJI_ENTRIES } from './data';
@@ -140,7 +137,7 @@ export function KanjiGame({
     let previousEntry: KanjiEntry | null = null;
     let forcedNextId: string | null = null; // 想起ミス時の「もういっかい つくってみよう」
 
-    const source = new PointerEventSource(canvas, detectPointerKind());
+    const source = createPointerSource(canvas);
     const unsubscribe = source.subscribe((s) => {
       pointer = s;
     });
