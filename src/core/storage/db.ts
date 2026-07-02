@@ -85,6 +85,25 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
   }
 }
 
+export async function getProgress<T>(key: string, fallback: T): Promise<T> {
+  try {
+    const v = await (await getDB()).get('progress', key);
+    return (v as T) ?? fallback;
+  } catch {
+    memoryMode = true;
+    return (memKV.get(`progress:${key}`) as T) ?? fallback;
+  }
+}
+
+export async function setProgress(key: string, value: unknown): Promise<void> {
+  try {
+    await (await getDB()).put('progress', value, key);
+  } catch {
+    memoryMode = true;
+    memKV.set(`progress:${key}`, value);
+  }
+}
+
 // セッション終了時の保護者向け警告表示の判定に使う（§9）
 export function isMemoryMode(): boolean {
   return memoryMode;
