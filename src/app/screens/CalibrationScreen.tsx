@@ -42,6 +42,8 @@ export function CalibrationScreen({
   const doneRef = useRef(false);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  const debugFrameCountRef = useRef(0); // TEMP DEBUG
+  const debugLastLogRef = useRef(0); // TEMP DEBUG
 
   useEffect(() => {
     // 親の再レンダーで音声・進行がリセットされないよう deps は tracker のみ
@@ -49,6 +51,14 @@ export function CalibrationScreen({
 
     const unsub = tracker.subscribe((frame) => {
       if (doneRef.current) return;
+      debugFrameCountRef.current += 1; // TEMP DEBUG
+      const debugNow = performance.now(); // TEMP DEBUG
+      if (debugNow - debugLastLogRef.current > 1000) {
+        // TEMP DEBUG: なかなか進まない問題の切り分け用（原因特定後に削除）
+        console.debug('[Calibration] fps~', debugFrameCountRef.current, 'confidence', frame?.confidence, 'bufLen', bufferRef.current.length);
+        debugFrameCountRef.current = 0;
+        debugLastLogRef.current = debugNow;
+      }
       if (!frame || frame.confidence < 0.5) {
         setHandSeen(false);
         bufferRef.current = [];
