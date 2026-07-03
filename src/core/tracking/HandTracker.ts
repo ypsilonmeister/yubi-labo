@@ -125,10 +125,18 @@ export class HandTracker {
     // BASE_URL: GitHub Pages 等サブパス配信でも解決できるよう絶対パス直書きを避ける
     const base = import.meta.env.BASE_URL;
     const fileset = await FilesetResolver.forVisionTasks(`${base}mediapipe/wasm`);
+    // TEMP DEBUG: video/currentTime/landmarksゼロの切り分け用にCPU delegateを明示
+    // （デフォルトはGPUだが、環境によってはグラフは起動するのに検出結果が
+    // 常に空になる既知の相性問題がある）
     this.landmarker = await HandLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: `${base}mediapipe/hand_landmarker.task` },
+      baseOptions: {
+        modelAssetPath: `${base}mediapipe/hand_landmarker.task`,
+        delegate: 'CPU',
+      },
       numHands: 1,
       runningMode: 'VIDEO',
+      minHandDetectionConfidence: 0.3,
+      minHandPresenceConfidence: 0.3,
     });
 
     this.running = true;
