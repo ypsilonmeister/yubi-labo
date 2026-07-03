@@ -108,3 +108,77 @@ export async function setProgress(key: string, value: unknown): Promise<void> {
 export function isMemoryMode(): boolean {
   return memoryMode;
 }
+
+// ── エクスポート/インポート（SPEC §4.5 / §4.7、P5 受け入れ条件: 往復で完全復元） ──
+
+export interface ExportData {
+  app: 'yubilab';
+  version: number;
+  exportedAt: number;
+  sessions: SessionRecord[];
+  progress: Record<string, unknown>;
+  settings: Record<string, unknown>;
+}
+
+async function dumpStore(store: 'progress' | 'settings'): Promise<Record<string, unknown>> {
+  const db = await getDB();
+  const keys = await db.getAllKeys(store);
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    out[String(key)] = await db.get(store, key);
+  }
+  return out;
+}
+
+export async function exportAll(): Promise<ExportData> {
+  const base: ExportData = {
+    app: 'yubilab',
+    version: DB_VERSION,
+    exportedAt: Date.now(),
+    sessions: [],
+    progress: {},
+    settings: {},
+  };
+  try {
+    base.sessions = await (await getDB()).getAll('sessions');
+    base.progress = await dumpStore('progress');
+    base.settings = await dumpStore('settings');
+  } catch {
+    memoryMode = true;
+    base.sessions = [...memSessions];
+    for (const [k, v] of memKV) {
+      if (k.startsWith('progress:')) base.progress[k.slice('progress:'.length)] = v;
+      else base.settings[k] = v;
+    }
+  }
+  return base;
+}
+
+// 既存データを置き換えて完全復元する
+export async function importAll(data: ExportData): Promise<void> {
+  if (data.app !== 'yubilab' || !Array.isArray(data.sessions)) {
+    throw new Error('invalid export data');
+  }
+  try {
+    const db = await getDB();
+    const tx = db.transaction(['sessions', 'progress', 'settings'], 'readwrite');
+    await tx.objectStore('sessions').clear();
+    await tx.objectStore('progress').clear();
+    await tx.objectStore('settings').clear();
+    for (const s of data.sessions) await tx.objectStore('sessions').put(s);
+    for (const [k, v] of Object.entries(data.progress ?? {})) {
+      await tx.objectStore('progress').put(v, k);
+    }
+    for (const [k, v] of Object.entries(data.settings ?? {})) {
+      await tx.objectStore('settings').put(v, k);
+    }
+    await tx.done;
+  } catch {
+    memoryMode = true;
+    memSessions.length = 0;
+    memSessions.push(...data.sessions);
+    memKV.clear();
+    for (const [k, v] of Object.entries(data.progress ?? {})) memKV.set(`progress:${k}`, v);
+    for (const [k, v] of Object.entries(data.settings ?? {})) memKV.set(k, v);
+  }
+}

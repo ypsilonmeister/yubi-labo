@@ -8,6 +8,7 @@ import { HomeScreen } from './screens/HomeScreen';
 import { FarmScreen } from './screens/FarmScreen';
 import { EndScreen } from './screens/EndScreen';
 import { ZukanScreen } from './screens/ZukanScreen';
+import { ParentScreen } from './screens/ParentScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
 import { MazeGame } from '../games/maze/MazeGame';
 import { KanjiGame } from '../games/kanji/KanjiGame';
@@ -35,6 +36,7 @@ type Screen =
   | 'farm'
   | 'zukan'
   | 'calibrate'
+  | 'parent'
   | 'end';
 // シェル層オーバーレイ: lost=トラッキングロスト（§4.2.5）、rest=ひとやすみ（§4.2.6）
 type Overlay = 'none' | 'lost' | 'found' | 'rest';
@@ -64,6 +66,7 @@ export function App() {
   // 🌟タップ = AudioContext の解錠を兼ねる（SPEC §9）
   const begin = useCallback(async () => {
     await audioGuide.unlock();
+    audioGuide.setVolume(await getSetting('volume', 1));
 
     // セッション長: 保護者設定（デフォルト5分）。開発用に ?min= で上書き可。
     const paramMin = new URLSearchParams(location.search).get('min');
@@ -118,6 +121,7 @@ export function App() {
 
   const openFarm = useCallback(() => setScreen('farm'), []);
   const openZukan = useCallback(() => setScreen('zukan'), []);
+  const openParent = useCallback(() => setScreen('parent'), []);
   const backHome = useCallback(() => setScreen('home'), []);
 
   const recordPlay = useCallback((play: PlayRecord) => {
@@ -252,6 +256,7 @@ export function App() {
           onOpenMoji={openMoji}
           onOpenFarm={openFarm}
           onOpenZukan={openZukan}
+          onOpenParent={openParent}
           inputMode={inputMode}
           onToggleInput={() => void toggleInput()}
           onCalibrate={openCalibrate}
@@ -259,6 +264,7 @@ export function App() {
       )}
       {screen === 'farm' && <FarmScreen onBack={backHome} />}
       {screen === 'zukan' && <ZukanScreen onBack={backHome} />}
+      {screen === 'parent' && <ParentScreen onBack={backHome} />}
       {screen === 'calibrate' &&
         (trackerRef.current ? (
           <CalibrationScreen
@@ -273,6 +279,7 @@ export function App() {
             onOpenMoji={openMoji}
             onOpenFarm={openFarm}
             onOpenZukan={openZukan}
+            onOpenParent={openParent}
             inputMode={inputMode}
             onToggleInput={() => void toggleInput()}
             onCalibrate={openCalibrate}

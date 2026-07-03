@@ -1,4 +1,4 @@
-import { getProgress, setProgress } from '../../core/storage/db';
+import { getProgress, getSetting, setProgress, setSetting } from '../../core/storage/db';
 import { KANJI_ENTRIES } from './data';
 import { REVIEW_INTERVALS_MS, type KanjiEntry, type KanjiProgress } from './types';
 
@@ -7,6 +7,24 @@ import { REVIEW_INTERVALS_MS, type KanjiEntry, type KanjiProgress } from './type
 export type KanjiProgressMap = Record<string, KanjiProgress>;
 
 const KEY = 'kanji.progress';
+const ENABLED_KEY = 'kanji.enabledIds'; // 保護者画面の出題範囲（SPEC §4.7-⑤）
+
+// 出題範囲。未設定（null）= 全字有効。
+export async function loadEnabledKanjiIds(): Promise<string[] | null> {
+  return getSetting<string[] | null>(ENABLED_KEY, null);
+}
+
+export async function saveEnabledKanjiIds(ids: string[] | null): Promise<void> {
+  await setSetting(ENABLED_KEY, ids);
+}
+
+export function enabledEntries(enabledIds: string[] | null): KanjiEntry[] {
+  if (!enabledIds) return KANJI_ENTRIES;
+  const set = new Set(enabledIds);
+  const filtered = KANJI_ENTRIES.filter((e) => set.has(e.id));
+  // 全部オフは事故（出題ゼロ）なので全字にフォールバック
+  return filtered.length > 0 ? filtered : KANJI_ENTRIES;
+}
 
 export async function loadKanjiProgress(): Promise<KanjiProgressMap> {
   return getProgress<KanjiProgressMap>(KEY, {});
@@ -40,9 +58,10 @@ export function pickNext(
   reviewStreak: number,
   now: number,
   excludeId?: string,
+  pool: KanjiEntry[] = KANJI_ENTRIES,
 ): { entry: KanjiEntry; isReview: boolean } | null {
-  const unseen = KANJI_ENTRIES.filter((e) => !map[e.id] && e.id !== excludeId);
-  const seen = KANJI_ENTRIES.filter((e) => map[e.id] && e.id !== excludeId);
+  const unseen = pool.filter((e) => !map[e.id] && e.id !== excludeId);
+  const seen = pool.filter((e) => map[e.id] && e.id !== excludeId);
   const due = seen.filter((e) => map[e.id].dueAt <= now);
 
   const wantNew = reviewStreak >= 2 || due.length === 0;
@@ -67,6 +86,7 @@ export function pickNext(
 
 // 想起チェック用のダミー選択肢2つ
 export function pickDistractors(target: KanjiEntry): KanjiEntry[] {
+  // 出題範囲外でも「見分ける」だけなので全字から選んでよい
   const others = KANJI_ENTRIES.filter((e) => e.id !== target.id);
   const shuffled = [...others].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, 2);

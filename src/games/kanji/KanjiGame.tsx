@@ -9,6 +9,8 @@ import { KANJI_ENTRIES } from './data';
 import {
   advanceProgress,
   defaultProgress,
+  enabledEntries,
+  loadEnabledKanjiIds,
   loadKanjiProgress,
   pickDistractors,
   pickNext,
@@ -132,6 +134,7 @@ export function KanjiGame({
     let lastFrame = performance.now();
     let q: QState | null = null;
     let progressMap: KanjiProgressMap = {};
+    let pool = KANJI_ENTRIES; // 保護者設定の出題範囲（SPEC §4.7-⑤）
     let reviewStreak = 0;
     let completedThisSession = 0;
     let previousEntry: KanjiEntry | null = null;
@@ -155,9 +158,11 @@ export function KanjiGame({
       let picked;
       if (forced) {
         const entry = KANJI_ENTRIES.find((e) => e.id === forced);
-        picked = entry ? { entry, isReview: true } : pickNext(progressMap, reviewStreak, Date.now());
+        picked = entry
+          ? { entry, isReview: true }
+          : pickNext(progressMap, reviewStreak, Date.now(), undefined, pool);
       } else {
-        picked = pickNext(progressMap, reviewStreak, Date.now());
+        picked = pickNext(progressMap, reviewStreak, Date.now(), undefined, pool);
       }
       if (!picked) return false;
       reviewStreak = picked.isReview ? reviewStreak + 1 : 0;
@@ -626,6 +631,7 @@ export function KanjiGame({
 
     async function init(): Promise<void> {
       progressMap = await loadKanjiProgress();
+      pool = enabledEntries(await loadEnabledKanjiIds());
       if (disposed) return;
       if (!loadQuestion(performance.now())) {
         onFinishRef.current();

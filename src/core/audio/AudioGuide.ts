@@ -45,6 +45,16 @@ class AudioGuide {
   private lastKey = '';
   private lastAt = 0;
   private current: HTMLAudioElement | null = null;
+  private volume = 1;
+
+  // 保護者画面の音量設定（0-1、SPEC §4.7）
+  setVolume(v: number): void {
+    this.volume = Math.max(0, Math.min(1, v));
+  }
+
+  getVolume(): number {
+    return this.volume;
+  }
 
   // 初回ユーザージェスチャーで呼ぶ（ブラウザ自動再生制限対策、SPEC §9）
   async unlock(): Promise<void> {
@@ -68,6 +78,7 @@ class AudioGuide {
     this.stopCurrent();
 
     const audio = new Audio(`/audio/${key}.mp3`);
+    audio.volume = this.volume;
     this.current = audio;
     let fellBack = false;
     const fallback = () => {
@@ -99,7 +110,7 @@ class AudioGuide {
     o.frequency.setValueAtTime(880, ctx.currentTime);
     o.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
     g.gain.setValueAtTime(0.0001, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.18 * this.volume), ctx.currentTime + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
     o.connect(g).connect(ctx.destination);
     o.start();
@@ -117,6 +128,7 @@ class AudioGuide {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
     u.rate = 0.9;
+    u.volume = this.volume;
     window.speechSynthesis.speak(u);
   }
 }

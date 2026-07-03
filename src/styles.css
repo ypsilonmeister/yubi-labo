@@ -381,3 +381,164 @@ body {
     transform: translateY(-16px);
   }
 }
+
+/* ── 保護者画面（P5、SPEC §4.7）── 日本語テキスト使用OK */
+
+.parent-gear {
+  opacity: 0.45;
+}
+
+.parent-screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: #f4f1ea;
+  color: #333;
+  padding: 32px 48px 64px;
+  font-family: system-ui, sans-serif;
+}
+
+.parent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.parent-header h1 {
+  font-size: 24px;
+}
+
+.parent-close {
+  border: 1px solid #bbb;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.parent-warning {
+  background: #fff3cd;
+  border: 1px solid #e0c766;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.parent-notice {
+  background: #e2f0e5;
+  border: 1px solid #9cc7a5;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.parent-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.parent-section h2 {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.parent-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #555;
+}
+
+.parent-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 32px;
+}
+
+.parent-chart {
+  width: 100%;
+  max-width: 460px;
+  background: #fafaf7;
+  border-radius: 8px;
+}
+
+.parent-note {
+  color: #777;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.parent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.parent-table th,
+.parent-table td {
+  border-bottom: 1px solid #e5e2da;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.parent-table th {
+  color: #666;
+  font-weight: 600;
+}
+
+.parent-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 15px;
+}
+
+.parent-settings label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.parent-settings select,
+.parent-settings input[type='range'] {
+  font-size: 15px;
+}
+
+.parent-kanji-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.parent-kanji-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  background: #fafaf7;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.parent-data-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.parent-data-buttons button {
+  border: 1px solid #bbb;
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.parent-data-buttons button:hover {
+  background: #f0ede4;
+}
