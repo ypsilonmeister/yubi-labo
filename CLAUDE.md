@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repository currently contains **only the specification** (`docs/SPEC.md`) — no source code, `package.json`, or build tooling exists yet. There are no build/lint/test commands to run until P0 (see below) is implemented. Once the project is scaffolded, update this file with the real commands (`npm run dev`, `npm run build`, `npm run test`, etc.).
+All phases P0–P5 are implemented (shell/input/audio/storage, Mode A maze, Mode B kanji, hand tracking, Mode C moji, parent dashboard). Commands:
+
+- `npm run dev` — Vite dev server. `?min=<minutes>` URL param overrides session length for quick testing (e.g. `?min=0.5`).
+- `npm run build` — `tsc --noEmit` type check + Vite production build (this is the test gate; there is no separate test suite).
+- `node scripts/validate-mazes.mjs src/data/mazes.json` / `node scripts/validate-kanji.mjs src/data/kanji.json` — dataset validators (run after editing game data).
 
 `docs/SPEC.md` (Japanese) is the single source of truth and is written to be self-contained — read it in full before implementing anything. It is the spec for **"ゆびラボ" (Yubi Labo)**, a browser-based training-game app designed for one specific 7-year-old child with weak visuomotor integration and weak letter-to-sound decoding, but strong shape/verbal/sequential-memory skills. Do not treat this as a generic kids'-app project; every design decision in the spec is traced back to that child's cognitive assessment (Appendix A of SPEC.md).
 
@@ -71,5 +75,3 @@ P0 (shell/input/audio/storage skeleton) → P1 (Mode A maze, must be shown to th
 - 機械的な作業 → fast-worker
 - Codex（`/codex:rescue --background`）は、deep-reasoner に匹敵する優秀なエンジニアで、異なる視点から。レビュアーではなくピアとして扱います。
 - 高リスクの決定：同じ問題で Opus + Codex を並行してタスクし、両者の最高の部分を統合し、互いの回答を見せずに。自分のコンテキストを軽く保つ。
-
-7
