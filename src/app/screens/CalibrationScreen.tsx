@@ -8,10 +8,18 @@ import {
   type CalibrationMatrix,
 } from '../../core/tracking/calibration';
 
-// SPEC §4.2.2 — 3点キャリブレーション（みぎうえ→ひだりした→まんなか）。
+// SPEC §4.2.2 — 5点キャリブレーション（みぎうえ→ひだりした→まんなか→ひだりうえ→みぎした）。
 // 星を指さして約1秒静止で取得。数字なし、リングが満ちる表現のみ。
+// 点数を3→5に増やしたのは、着座姿勢での指先の実移動量が小さく3点解だと
+// 変換行列が不安定になりやすいため（最小二乗フィットで安定化、calibration.ts参照）。
 
-const VOICE_KEYS = ['calib.topright', 'calib.bottomleft', 'calib.center'] as const;
+const VOICE_KEYS = [
+  'calib.topright',
+  'calib.bottomleft',
+  'calib.center',
+  'calib.topleft',
+  'calib.bottomright',
+] as const;
 const HOLD_MS = 1000;
 const HOLD_RADIUS_CAM = 0.07; // カメラ正規化座標での静止判定半径（手ぶれを許容する程度に緩和）
 
@@ -80,15 +88,12 @@ export function CalibrationScreen({
         } else {
           doneRef.current = true;
           try {
-            // TEMP DEBUG: 対角線上にしか動かない問題の切り分け用（原因特定後に削除）
-            console.debug('[Calibration] samples', samplesRef.current);
             const m = solveAffine(
               samplesRef.current.map((cam, i) => ({
                 cam,
                 logical: CALIB_TARGETS[i],
               })),
             );
-            console.debug('[Calibration] matrix', m);
             void saveCalibration(m);
             audioGuide.speak('calib.done');
             onDoneRef.current(m);

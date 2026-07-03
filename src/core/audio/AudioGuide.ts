@@ -15,6 +15,8 @@ const SCRIPTS: Record<string, string> = {
   'calib.topright': 'みぎうえの ほしを ゆびで さしてね',
   'calib.bottomleft': 'ひだりしたの ほしを さしてね',
   'calib.center': 'まんなかの ほしを さしてね',
+  'calib.topleft': 'ひだりうえの ほしを さしてね',
+  'calib.bottomright': 'みぎしたの ほしを さしてね',
   'calib.done': 'じゅんび かんぺき！ ゆびが カーソルに なったよ',
   'camera.unavailable': 'カメラが おやすみみたい。ゆびか マウスで あそぼう',
   'maze.intro': 'ここから ねっこを のばそう。みずいろの みちに そって、ゆっくり すすんでね',
