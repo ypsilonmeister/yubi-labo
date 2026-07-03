@@ -64,7 +64,9 @@ export class HandTracker {
   }
 
   private async doStart(): Promise<void> {
-    // 非表示の video 要素を用意（DOM に出さず offscreen 扱い）
+    // 画面外に配置する video 要素（子どもには一切見せない、§2.7/§4.2.1）。
+    // DOM 未接続のままだと一部ブラウザでデコードがスロットリングされ
+    // currentTime が進まず検出ループが空振りし続けるため、必ず接続する。
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
     video.muted = true;
@@ -76,6 +78,7 @@ export class HandTracker {
     video.style.opacity = '0';
     video.style.pointerEvents = 'none';
     video.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(video);
     this.video = video;
 
     try {
