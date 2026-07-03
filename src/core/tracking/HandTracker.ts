@@ -41,6 +41,10 @@ export class HandTracker {
   private video: HTMLVideoElement | null = null;
   private stream: MediaStream | null = null;
   private landmarker: HandLandmarker | null = null;
+  // video 直渡しはブラウザ/ドライバ組合せによりフレーム取込が空振りする報告があるため
+  // canvas 経由でピクセルを確実に渡す（TEMP DEBUG: 切り分け中）
+  private grabCanvas: HTMLCanvasElement | null = null;
+  private grabCtx: CanvasRenderingContext2D | null = null;
   private rafId = 0;
   private running = false;
   private starting: Promise<void> | null = null;
@@ -139,6 +143,11 @@ export class HandTracker {
       minHandPresenceConfidence: 0.3,
     });
 
+    this.grabCanvas = document.createElement('canvas');
+    this.grabCanvas.width = video.videoWidth || 640;
+    this.grabCanvas.height = video.videoHeight || 480;
+    this.grabCtx = this.grabCanvas.getContext('2d', { willReadFrequently: true });
+
     this.running = true;
     this.lastSeenAt = performance.now();
     this.status = 'lost';
@@ -156,6 +165,8 @@ export class HandTracker {
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.cleanupVideo();
+    this.grabCanvas = null;
+    this.grabCtx = null;
     this.lastVideoTime = -1;
     this.status = 'lost';
   }
@@ -202,7 +213,17 @@ export class HandTracker {
 
     let frame: HandFrame | null = null;
     try {
-      const result = this.landmarker.detectForVideo(this.video, now);
+      // TEMP DEBUG: video 直渡しではなく canvas に描いたピクセルを渡す（切り分け）
+      let input: HTMLVideoElement | HTMLCanvasElement = this.video;
+      if (this.grabCanvas && this.grabCtx) {
+        if (this.grabCanvas.width !== this.video.videoWidth && this.video.videoWidth > 0) {
+          this.grabCanvas.width = this.video.videoWidth;
+          this.grabCanvas.height = this.video.videoHeight;
+        }
+        this.grabCtx.drawImage(this.video, 0, 0);
+        input = this.grabCanvas;
+      }
+      const result = this.landmarker.detectForVideo(input, now);
       // TEMP DEBUG: 検出状況を可視化するための一時ログ（原因特定後に削除）
       if (Math.random() < 0.2) {
         console.debug('[HandTracker] videoSize', this.video.videoWidth, this.video.videoHeight,
