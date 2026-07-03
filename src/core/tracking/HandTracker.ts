@@ -50,6 +50,7 @@ export class HandTracker {
   private lastVideoTime = -1;
   private lastSeenAt = 0; // 直近で手を検出した時刻
   private status: 'tracking' | 'lost' = 'lost';
+  private lastDebugLogAt = 0; // TEMP DEBUG
 
   // 冪等な start（§: 二重初期化を防ぐ）
   async start(): Promise<void> {
@@ -98,6 +99,14 @@ export class HandTracker {
       this.stop();
       throw new CameraUnavailableError(e);
     }
+    // TEMP DEBUG: play() 直後の状態（原因特定後に削除）
+    console.debug('[HandTracker] after play()', {
+      readyState: video.readyState,
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+      streamActive: this.stream.active,
+      trackState: this.stream.getVideoTracks()[0]?.readyState,
+    });
 
     // ローカル配信の wasm / モデルのみ使用（外部通信なし、§2.8）
     // BASE_URL: GitHub Pages 等サブパス配信でも解決できるよう絶対パス直書きを避ける
@@ -154,6 +163,18 @@ export class HandTracker {
     this.rafId = requestAnimationFrame(this.loop);
 
     const now = performance.now();
+    // TEMP DEBUG: 1秒おきにループ生死とvideo状態を必ず出す（原因特定後に削除）
+    if (now - this.lastDebugLogAt > 1000) {
+      this.lastDebugLogAt = now;
+      console.debug('[HandTracker] loop alive', {
+        readyState: this.video.readyState,
+        currentTime: this.video.currentTime,
+        lastVideoTime: this.lastVideoTime,
+        videoWidth: this.video.videoWidth,
+        videoHeight: this.video.videoHeight,
+        paused: this.video.paused,
+      });
+    }
     // 新しいフレームが来たときのみ検出（VIDEO モードの要件）
     if (this.video.currentTime === this.lastVideoTime) return;
     this.lastVideoTime = this.video.currentTime;
@@ -162,7 +183,7 @@ export class HandTracker {
     try {
       const result = this.landmarker.detectForVideo(this.video, now);
       // TEMP DEBUG: 検出状況を可視化するための一時ログ（原因特定後に削除）
-      if (Math.random() < 0.05) {
+      if (Math.random() < 0.2) {
         console.debug('[HandTracker] videoSize', this.video.videoWidth, this.video.videoHeight,
           'landmarks', result.landmarks.length);
       }
