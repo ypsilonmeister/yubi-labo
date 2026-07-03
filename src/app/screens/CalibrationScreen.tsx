@@ -76,13 +76,20 @@ export function CalibrationScreen({
       // バッファ全消去はせず末尾側から徐々に切り詰める（進捗のガクつき防止）。
       let cx = buf.reduce((s, p) => s + p.x, 0) / buf.length;
       let cy = buf.reduce((s, p) => s + p.y, 0) / buf.length;
+      let debugShifts = 0; // TEMP DEBUG
       while (buf.length > 1 && !buf.every((p) => Math.hypot(p.x - cx, p.y - cy) < HOLD_RADIUS_CAM)) {
         buf.shift();
+        debugShifts += 1; // TEMP DEBUG
         cx = buf.reduce((s, p) => s + p.x, 0) / buf.length;
         cy = buf.reduce((s, p) => s + p.y, 0) / buf.length;
       }
       const heldMs = buf.length > 1 ? now - buf[0].t : 0;
       setProgress(Math.min(1, heldMs / HOLD_MS));
+      if (Math.random() < 0.15) {
+        // TEMP DEBUG: 揺れ幅・間引き回数・heldMsを可視化（原因特定後に削除）
+        const maxDist = Math.max(0, ...buf.map((p) => Math.hypot(p.x - cx, p.y - cy)));
+        console.debug('[Calibration] dwell', { heldMs: Math.round(heldMs), bufLen: buf.length, shifts: debugShifts, maxDist: maxDist.toFixed(4) });
+      }
 
       if (heldMs >= HOLD_MS) {
         samplesRef.current.push({ x: cx, y: cy });
