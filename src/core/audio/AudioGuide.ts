@@ -77,7 +77,7 @@ class AudioGuide {
     // 再生中の重複はキューせず置き換え（SPEC §4.3）
     this.stopCurrent();
 
-    const audio = new Audio(`/audio/${key}.mp3`);
+    const audio = new Audio(`${import.meta.env.BASE_URL}audio/${key}.mp3`);
     audio.volume = this.volume;
     this.current = audio;
     let fellBack = false;

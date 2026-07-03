@@ -97,9 +97,11 @@ export class HandTracker {
     }
 
     // ローカル配信の wasm / モデルのみ使用（外部通信なし、§2.8）
-    const fileset = await FilesetResolver.forVisionTasks('/mediapipe/wasm');
+    // BASE_URL: GitHub Pages 等サブパス配信でも解決できるよう絶対パス直書きを避ける
+    const base = import.meta.env.BASE_URL;
+    const fileset = await FilesetResolver.forVisionTasks(`${base}mediapipe/wasm`);
     this.landmarker = await HandLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: '/mediapipe/hand_landmarker.task' },
+      baseOptions: { modelAssetPath: `${base}mediapipe/hand_landmarker.task` },
       numHands: 1,
       runningMode: 'VIDEO',
     });
