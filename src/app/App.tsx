@@ -57,6 +57,7 @@ export function App() {
   const timerRef = useRef<SessionTimer | null>(null);
   const sessionRef = useRef<SessionRecord | null>(null);
   const trackerRef = useRef<HandTracker | null>(null);
+  const handInitializingRef = useRef(false); // toggleInput 連打による二重初期化を防ぐ
   const screenRef = useRef<Screen>('start');
   const overlayRef = useRef<Overlay>('none');
   const handUseSecRef = useRef(0);
@@ -185,6 +186,10 @@ export function App() {
       stopHand();
       return;
     }
+    // inputMode の更新は初期化完了後（非同期）なので、連打で if ガードを
+    // すり抜けて HandTracker が二重生成されるのを同期フラグで防ぐ
+    if (handInitializingRef.current) return;
+    handInitializingRef.current = true;
     try {
       // MediaPipe 一式はハンド初回有効化まで読み込まない（バンドル分離）
       const [{ HandTracker }, calib] = await Promise.all([
@@ -207,6 +212,8 @@ export function App() {
       trackerRef.current?.stop();
       trackerRef.current = null;
       audioGuide.speak('camera.unavailable');
+    } finally {
+      handInitializingRef.current = false;
     }
   }, [inputMode, stopHand, finishHandEnable, handleTrackStatus]);
 
