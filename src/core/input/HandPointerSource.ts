@@ -112,6 +112,10 @@ export class HandPointerSource implements PointerSource {
     const mapped = applyCalibration(this.calib, f.indexTip.x, f.indexTip.y);
     const x = this.fx.filter(mapped.x, f.timestamp);
     const y = this.fy.filter(mapped.y, f.timestamp);
+    // TEMP DEBUG: 対角線上にしか動かない問題の切り分け用（原因特定後に削除）
+    if (Math.random() < 0.02) {
+      console.debug('[HandPointerSource] cam', f.indexTip, 'mapped', mapped, 'filtered', { x, y }, 'calib', this.calib);
+    }
 
     if (!this.hasPos) {
       this.hasPos = true;

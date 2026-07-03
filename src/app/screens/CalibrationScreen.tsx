@@ -80,12 +80,15 @@ export function CalibrationScreen({
         } else {
           doneRef.current = true;
           try {
+            // TEMP DEBUG: 対角線上にしか動かない問題の切り分け用（原因特定後に削除）
+            console.debug('[Calibration] samples', samplesRef.current);
             const m = solveAffine(
               samplesRef.current.map((cam, i) => ({
                 cam,
                 logical: CALIB_TARGETS[i],
               })),
             );
+            console.debug('[Calibration] matrix', m);
             void saveCalibration(m);
             audioGuide.speak('calib.done');
             onDoneRef.current(m);

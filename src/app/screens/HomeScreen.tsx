@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import type { InputMode } from '../../core/input/inputProvider';
+import { useNonGamePointerSelect } from '../useNonGamePointerSelect';
 
 // ホーム画面。P2 でモードB（🧬かんじ工場）が加わった（未実装モードは出さない、SPEC §10）。
 // 🪴 = はたけ、📗 = ぶんしずかん。右上 = 入力切替 👆/🖐 と 🔧 再キャリブレーション（§4.4.2）。
@@ -29,6 +30,8 @@ export function HomeScreen({
   onCalibrate: () => void;
 }) {
   const holdTimer = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  useNonGamePointerSelect(containerRef, inputMode);
 
   const startHold = () => {
     cancelHold();
@@ -42,7 +45,7 @@ export function HomeScreen({
   };
 
   return (
-    <div className="center-fill">
+    <div className="center-fill" ref={containerRef}>
       <div className="home-row">
         <button className="icon-button game-card" onClick={onOpenMaze} aria-label="ねっこのめいろ">
           🌱
