@@ -158,6 +158,11 @@ export class HandTracker {
     let frame: HandFrame | null = null;
     try {
       const result = this.landmarker.detectForVideo(this.video, now);
+      // TEMP DEBUG: 検出状況を可視化するための一時ログ（原因特定後に削除）
+      if (Math.random() < 0.05) {
+        console.debug('[HandTracker] videoSize', this.video.videoWidth, this.video.videoHeight,
+          'landmarks', result.landmarks.length);
+      }
       const hand = result.landmarks[0];
       if (hand && hand.length > IDX_MIDDLE_MCP) {
         // handedness スコアを confidence に流用（無ければ 1）
@@ -171,8 +176,9 @@ export class HandTracker {
           timestamp: now,
         };
       }
-    } catch {
-      // 単一フレームの検出失敗は無視（次フレームで回復）
+    } catch (e) {
+      // TEMP DEBUG: 単一フレームの検出失敗は無視（次フレームで回復）— 原因特定のため一時的に記録
+      console.error('[HandTracker] detectForVideo failed', e);
       frame = null;
     }
 

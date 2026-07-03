@@ -201,8 +201,9 @@ export function App() {
       } else {
         setScreen('calibrate');
       }
-    } catch {
-      // 原則7: カメラ側の問題として伝える（子どものせいにしない）
+    } catch (e) {
+      // TEMP DEBUG: 原因特定のため一時的に記録（原則7: 子どもには camera.unavailable のみ伝える）
+      console.error('[toggleInput] hand mode init failed', e);
       trackerRef.current?.stop();
       trackerRef.current = null;
       audioGuide.speak('camera.unavailable');
