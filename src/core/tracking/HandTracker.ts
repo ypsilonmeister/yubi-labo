@@ -68,15 +68,28 @@ export class HandTracker {
     // 画面外に配置する video 要素（子どもには一切見せない、§2.7/§4.2.1）。
     // DOM 未接続のままだと一部ブラウザでデコードがスロットリングされ
     // currentTime が進まず検出ループが空振りし続けるため、必ず接続する。
+    // TEMP DEBUG: ?debugcam=1 で開発者が実際の映像を目視確認できるようにする（原因特定後に削除）
+    const debugCam = new URLSearchParams(location.search).has('debugcam');
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
     video.muted = true;
-    video.style.position = 'fixed';
-    video.style.left = '-9999px';
-    video.style.top = '-9999px';
-    video.style.width = '1px';
-    video.style.height = '1px';
-    video.style.opacity = '0';
+    if (debugCam) {
+      video.style.position = 'fixed';
+      video.style.right = '8px';
+      video.style.bottom = '8px';
+      video.style.width = '240px';
+      video.style.height = '180px';
+      video.style.zIndex = '99999';
+      video.style.border = '2px solid red';
+      video.style.transform = 'scaleX(-1)';
+    } else {
+      video.style.position = 'fixed';
+      video.style.left = '-9999px';
+      video.style.top = '-9999px';
+      video.style.width = '1px';
+      video.style.height = '1px';
+      video.style.opacity = '0';
+    }
     video.style.pointerEvents = 'none';
     video.setAttribute('aria-hidden', 'true');
     document.body.appendChild(video);
