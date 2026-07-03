@@ -207,7 +207,7 @@ export function App() {
         setScreen('calibrate');
       }
     } catch (e) {
-      // TEMP DEBUG: 原因特定のため一時的に記録（原則7: 子どもには camera.unavailable のみ伝える）
+      // 原則7: 子どもには camera.unavailable のみ伝える。詳細はコンソールに残す。
       console.error('[toggleInput] hand mode init failed', e);
       trackerRef.current?.stop();
       trackerRef.current = null;

@@ -13,7 +13,7 @@ import {
 
 const VOICE_KEYS = ['calib.topright', 'calib.bottomleft', 'calib.center'] as const;
 const HOLD_MS = 1000;
-const HOLD_RADIUS_CAM = 0.045; // カメラ正規化座標での静止判定半径
+const HOLD_RADIUS_CAM = 0.07; // カメラ正規化座標での静止判定半径（手ぶれを許容する程度に緩和）
 
 export function CalibrationScreen({
   tracker,
@@ -53,14 +53,15 @@ export function CalibrationScreen({
       buf.push({ t: now, x: frame.indexTip.x, y: frame.indexTip.y });
       while (buf.length > 0 && now - buf[0].t > HOLD_MS) buf.shift();
 
-      // 直近 HOLD_MS の指先が半径内に収まっていれば「静止」
-      const cx = buf.reduce((s, p) => s + p.x, 0) / buf.length;
-      const cy = buf.reduce((s, p) => s + p.y, 0) / buf.length;
-      const still = buf.every((p) => Math.hypot(p.x - cx, p.y - cy) < HOLD_RADIUS_CAM);
-      if (!still) {
-        bufferRef.current = buf.slice(-1);
-        setProgress(0);
-        return;
+      // 直近 HOLD_MS の指先が半径内に収まっていれば「静止」。
+      // 手ぶれで一瞬だけ半径を超えても、直近サンプルを起点に継続判定できるよう
+      // バッファ全消去はせず末尾側から徐々に切り詰める（進捗のガクつき防止）。
+      let cx = buf.reduce((s, p) => s + p.x, 0) / buf.length;
+      let cy = buf.reduce((s, p) => s + p.y, 0) / buf.length;
+      while (buf.length > 1 && !buf.every((p) => Math.hypot(p.x - cx, p.y - cy) < HOLD_RADIUS_CAM)) {
+        buf.shift();
+        cx = buf.reduce((s, p) => s + p.x, 0) / buf.length;
+        cy = buf.reduce((s, p) => s + p.y, 0) / buf.length;
       }
       const heldMs = buf.length > 1 ? now - buf[0].t : 0;
       setProgress(Math.min(1, heldMs / HOLD_MS));

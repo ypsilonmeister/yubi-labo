@@ -41,8 +41,8 @@ export class HandTracker {
   private video: HTMLVideoElement | null = null;
   private stream: MediaStream | null = null;
   private landmarker: HandLandmarker | null = null;
-  // video 直渡しはブラウザ/ドライバ組合せによりフレーム取込が空振りする報告があるため
-  // canvas 経由でピクセルを確実に渡す（TEMP DEBUG: 切り分け中）
+  // video 直渡しはブラウザ/ドライバ組合せによりフレーム取込が空振りすることがあるため
+  // canvas に描いたピクセルを渡す（実機で video 直渡しは landmarks が常に0になる問題を確認済み）
   private grabCanvas: HTMLCanvasElement | null = null;
   private grabCtx: CanvasRenderingContext2D | null = null;
   private rafId = 0;
@@ -54,7 +54,6 @@ export class HandTracker {
   private lastVideoTime = -1;
   private lastSeenAt = 0; // 直近で手を検出した時刻
   private status: 'tracking' | 'lost' = 'lost';
-  private lastDebugLogAt = 0; // TEMP DEBUG
 
   // 冪等な start（§: 二重初期化を防ぐ）
   async start(): Promise<void> {
@@ -72,28 +71,15 @@ export class HandTracker {
     // 画面外に配置する video 要素（子どもには一切見せない、§2.7/§4.2.1）。
     // DOM 未接続のままだと一部ブラウザでデコードがスロットリングされ
     // currentTime が進まず検出ループが空振りし続けるため、必ず接続する。
-    // TEMP DEBUG: ?debugcam=1 で開発者が実際の映像を目視確認できるようにする（原因特定後に削除）
-    const debugCam = new URLSearchParams(location.search).has('debugcam');
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
     video.muted = true;
-    if (debugCam) {
-      video.style.position = 'fixed';
-      video.style.right = '8px';
-      video.style.bottom = '8px';
-      video.style.width = '240px';
-      video.style.height = '180px';
-      video.style.zIndex = '99999';
-      video.style.border = '2px solid red';
-      video.style.transform = 'scaleX(-1)';
-    } else {
-      video.style.position = 'fixed';
-      video.style.left = '-9999px';
-      video.style.top = '-9999px';
-      video.style.width = '1px';
-      video.style.height = '1px';
-      video.style.opacity = '0';
-    }
+    video.style.position = 'fixed';
+    video.style.left = '-9999px';
+    video.style.top = '-9999px';
+    video.style.width = '1px';
+    video.style.height = '1px';
+    video.style.opacity = '0';
     video.style.pointerEvents = 'none';
     video.setAttribute('aria-hidden', 'true');
     document.body.appendChild(video);
@@ -116,22 +102,13 @@ export class HandTracker {
       this.stop();
       throw new CameraUnavailableError(e);
     }
-    // TEMP DEBUG: play() 直後の状態（原因特定後に削除）
-    console.debug('[HandTracker] after play()', {
-      readyState: video.readyState,
-      videoWidth: video.videoWidth,
-      videoHeight: video.videoHeight,
-      streamActive: this.stream.active,
-      trackState: this.stream.getVideoTracks()[0]?.readyState,
-    });
 
     // ローカル配信の wasm / モデルのみ使用（外部通信なし、§2.8）
     // BASE_URL: GitHub Pages 等サブパス配信でも解決できるよう絶対パス直書きを避ける
     const base = import.meta.env.BASE_URL;
     const fileset = await FilesetResolver.forVisionTasks(`${base}mediapipe/wasm`);
-    // TEMP DEBUG: video/currentTime/landmarksゼロの切り分け用にCPU delegateを明示
-    // （デフォルトはGPUだが、環境によってはグラフは起動するのに検出結果が
-    // 常に空になる既知の相性問題がある）
+    // delegate: 'CPU' — 実機で GPU delegate 時にグラフは起動するのに検出結果が
+    // 常に空になる事象を確認したため明示的にCPUへ固定。しきい値もやや緩和。
     this.landmarker = await HandLandmarker.createFromOptions(fileset, {
       baseOptions: {
         modelAssetPath: `${base}mediapipe/hand_landmarker.task`,
@@ -195,25 +172,12 @@ export class HandTracker {
     this.rafId = requestAnimationFrame(this.loop);
 
     const now = performance.now();
-    // TEMP DEBUG: 1秒おきにループ生死とvideo状態を必ず出す（原因特定後に削除）
-    if (now - this.lastDebugLogAt > 1000) {
-      this.lastDebugLogAt = now;
-      console.debug('[HandTracker] loop alive', {
-        readyState: this.video.readyState,
-        currentTime: this.video.currentTime,
-        lastVideoTime: this.lastVideoTime,
-        videoWidth: this.video.videoWidth,
-        videoHeight: this.video.videoHeight,
-        paused: this.video.paused,
-      });
-    }
     // 新しいフレームが来たときのみ検出（VIDEO モードの要件）
     if (this.video.currentTime === this.lastVideoTime) return;
     this.lastVideoTime = this.video.currentTime;
 
     let frame: HandFrame | null = null;
     try {
-      // TEMP DEBUG: video 直渡しではなく canvas に描いたピクセルを渡す（切り分け）
       let input: HTMLVideoElement | HTMLCanvasElement = this.video;
       if (this.grabCanvas && this.grabCtx) {
         if (this.grabCanvas.width !== this.video.videoWidth && this.video.videoWidth > 0) {
@@ -224,11 +188,6 @@ export class HandTracker {
         input = this.grabCanvas;
       }
       const result = this.landmarker.detectForVideo(input, now);
-      // TEMP DEBUG: 検出状況を可視化するための一時ログ（原因特定後に削除）
-      if (Math.random() < 0.2) {
-        console.debug('[HandTracker] videoSize', this.video.videoWidth, this.video.videoHeight,
-          'landmarks', result.landmarks.length);
-      }
       const hand = result.landmarks[0];
       if (hand && hand.length > IDX_MIDDLE_MCP) {
         // handedness スコアを confidence に流用（無ければ 1）
@@ -242,9 +201,8 @@ export class HandTracker {
           timestamp: now,
         };
       }
-    } catch (e) {
-      // TEMP DEBUG: 単一フレームの検出失敗は無視（次フレームで回復）— 原因特定のため一時的に記録
-      console.error('[HandTracker] detectForVideo failed', e);
+    } catch {
+      // 単一フレームの検出失敗は無視（次フレームで回復）
       frame = null;
     }
 
