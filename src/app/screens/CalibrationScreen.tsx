@@ -22,6 +22,10 @@ const VOICE_KEYS = [
 ] as const;
 const HOLD_MS = 1000;
 const HOLD_RADIUS_CAM = 0.07; // カメラ正規化座標での静止判定半径（手ぶれを許容する程度に緩和）
+// 次の星へ指を移動する時間を確保するクールダウン。無いと、前の点で成功した
+// 直後にまだ指が同じ場所にある間に次の判定が始まり、そのまま連続成功して
+// しまう（=事実上ひとつ前の星の位置で誤ってサンプリングされる）。
+const MOVE_COOLDOWN_MS = 600;
 
 export function CalibrationScreen({
   tracker,
@@ -42,8 +46,8 @@ export function CalibrationScreen({
   const doneRef = useRef(false);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
-  const debugFrameCountRef = useRef(0); // TEMP DEBUG
-  const debugLastLogRef = useRef(0); // TEMP DEBUG
+  // 次の星への移動中は静止判定を行わない猶予期間（performance.now() 基準の終了時刻）
+  const cooldownUntilRef = useRef(performance.now() + MOVE_COOLDOWN_MS);
 
   useEffect(() => {
     // 親の再レンダーで音声・進行がリセットされないよう deps は tracker のみ
@@ -51,14 +55,6 @@ export function CalibrationScreen({
 
     const unsub = tracker.subscribe((frame) => {
       if (doneRef.current) return;
-      debugFrameCountRef.current += 1; // TEMP DEBUG
-      const debugNow = performance.now(); // TEMP DEBUG
-      if (debugNow - debugLastLogRef.current > 1000) {
-        // TEMP DEBUG: なかなか進まない問題の切り分け用（原因特定後に削除）
-        console.debug('[Calibration] fps~', debugFrameCountRef.current, 'confidence', frame?.confidence, 'bufLen', bufferRef.current.length);
-        debugFrameCountRef.current = 0;
-        debugLastLogRef.current = debugNow;
-      }
       if (!frame || frame.confidence < 0.5) {
         setHandSeen(false);
         bufferRef.current = [];
@@ -67,6 +63,14 @@ export function CalibrationScreen({
       }
       setHandSeen(true);
       const now = frame.timestamp;
+
+      if (now < cooldownUntilRef.current) {
+        // 移動猶予中: バッファを溜めず、進捗も表示しない
+        bufferRef.current = [];
+        setProgress(0);
+        return;
+      }
+
       const buf = bufferRef.current;
       buf.push({ t: now, x: frame.indexTip.x, y: frame.indexTip.y });
       while (buf.length > 0 && now - buf[0].t > HOLD_MS) buf.shift();
@@ -76,20 +80,15 @@ export function CalibrationScreen({
       // バッファ全消去はせず末尾側から徐々に切り詰める（進捗のガクつき防止）。
       let cx = buf.reduce((s, p) => s + p.x, 0) / buf.length;
       let cy = buf.reduce((s, p) => s + p.y, 0) / buf.length;
-      let debugShifts = 0; // TEMP DEBUG
       while (buf.length > 1 && !buf.every((p) => Math.hypot(p.x - cx, p.y - cy) < HOLD_RADIUS_CAM)) {
         buf.shift();
-        debugShifts += 1; // TEMP DEBUG
         cx = buf.reduce((s, p) => s + p.x, 0) / buf.length;
         cy = buf.reduce((s, p) => s + p.y, 0) / buf.length;
       }
       const heldMs = buf.length > 1 ? now - buf[0].t : 0;
-      setProgress(Math.min(1, heldMs / HOLD_MS));
-      if (Math.random() < 0.15) {
-        // TEMP DEBUG: 揺れ幅・間引き回数・heldMsを可視化（原因特定後に削除）
-        const maxDist = Math.max(0, ...buf.map((p) => Math.hypot(p.x - cx, p.y - cy)));
-        console.debug('[Calibration] dwell', { heldMs: Math.round(heldMs), bufLen: buf.length, shifts: debugShifts, maxDist: maxDist.toFixed(4) });
-      }
+      // 表示上のガクつきを抑えるため、進捗は後退させず単調に増やす
+      // （成立の可否そのものは heldMs で判定するので判定の正しさには影響しない）
+      setProgress((prev) => Math.max(prev * 0.9, Math.min(1, heldMs / HOLD_MS)));
 
       if (heldMs >= HOLD_MS) {
         samplesRef.current.push({ x: cx, y: cy });
@@ -101,6 +100,7 @@ export function CalibrationScreen({
         if (next < CALIB_TARGETS.length) {
           stepRef.current = next;
           setStep(next);
+          cooldownUntilRef.current = now + MOVE_COOLDOWN_MS;
           audioGuide.speak(VOICE_KEYS[next]);
         } else {
           doneRef.current = true;
@@ -115,11 +115,12 @@ export function CalibrationScreen({
             audioGuide.speak('calib.done');
             onDoneRef.current(m);
           } catch {
-            // 3点が一直線等で解けない → 最初からやり直し（責めない、無音でリスタート）
+            // 全点が一直線等で解けない → 最初からやり直し（責めない、無音でリスタート）
             samplesRef.current = [];
             doneRef.current = false;
             stepRef.current = 0;
             setStep(0);
+            cooldownUntilRef.current = now + MOVE_COOLDOWN_MS;
             audioGuide.speak(VOICE_KEYS[0]);
           }
         }
