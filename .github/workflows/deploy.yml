@@ -24,6 +24,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm run validate
       - run: npm run build
         env:
           GITHUB_PAGES: 'true'

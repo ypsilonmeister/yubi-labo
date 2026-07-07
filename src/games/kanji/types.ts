@@ -21,23 +21,29 @@ export interface KanjiEntry {
   grade: 1 | 2;
   meaningEmoji: [string, string]; // 意味アニメ: クロスフェード前→後
   parts: KanjiPart[]; // 組み立て順 = シーケンス提示順
+  labOnly?: boolean; // ごうせいラボ専用の発見対象（SPEC §12.7、通常出題には出さない）
 }
+
+// SPEC §12.5: Lv4 = 完成形非表示 + ダミーパーツ混入
+export type KanjiLevel = 1 | 2 | 3 | 4;
 
 export interface KanjiMetrics {
   char: string;
-  level: 1 | 2 | 3;
+  level: KanjiLevel;
   misplacements: number;
   hintUsed: boolean;
   firstComplete: boolean;
   recallCorrect?: boolean;
+  decoyTouches?: number; // Lv4 のダミーパーツに触れた回数
   [key: string]: unknown;
 }
 
-// SPEC §6.4 難易度段階ごとの進行状況（漢字ごとに独立）
+// SPEC §6.4 / §12.5 難易度段階ごとの進行状況（漢字ごとに独立）
 export interface KanjiProgress {
-  level: 1 | 2 | 3;
+  level: KanjiLevel;
   completions: number;
-  mastered: boolean; // Lv3をノーヒント完成 = 図鑑で金の分子マーク
+  mastered: boolean; // Lv3をノーヒント完成 = 図鑑で金の分子マーク（定義は変更しない）
+  lv4Star?: boolean; // Lv4をノーヒント完成 = 図鑑で👑
   recallStar: boolean; // 想起チェック正解 = ✨
   dueAt: number; // 間隔反復の再出題時刻
 }

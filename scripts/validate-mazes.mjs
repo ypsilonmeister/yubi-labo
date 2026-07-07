@@ -13,10 +13,13 @@ if (!Array.isArray(data)) {
 }
 
 const widthBands = {
-  '1-4': 120, '5-8': 100, '9-12': 80, '13-16': 60, '17-20': [40, 50]
+  '1-4': 120, '5-8': 100, '9-12': 80, '13-16': 60, '17-20': [40, 50],
+  // v1.1 拡張バンド（SPEC §12.4）
+  '21-26': 36, '27-32': 32, '33-38': 28, '39-44': 24
 };
 const stopsBands = {
-  '1-4': [0, 1], '5-8': [1, 1], '9-12': [1, 2], '13-16': [2, 2], '17-20': [2, 3]
+  '1-4': [0, 1], '5-8': [1, 1], '9-12': [1, 2], '13-16': [2, 2], '17-20': [2, 3],
+  '21-26': [2, 3], '27-32': [3, 3], '33-38': [3, 4], '39-44': [3, 4]
 };
 
 function getBand(level) {
@@ -24,7 +27,11 @@ function getBand(level) {
   if (level <= 8) return '5-8';
   if (level <= 12) return '9-12';
   if (level <= 16) return '13-16';
-  return '17-20';
+  if (level <= 20) return '17-20';
+  if (level <= 26) return '21-26';
+  if (level <= 32) return '27-32';
+  if (level <= 38) return '33-38';
+  return '39-44';
 }
 function dist(p1, p2) {
   return Math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2);
@@ -69,7 +76,55 @@ function validateLevel(level, idx) {
     }
   }
   const arc = arcLength(level.path);
-  if (arc < 500 || arc > 3000) errors.push(`arc length ${arc.toFixed(0)}px out of [500,3000]`);
+  // v1.1: 21以降は長い複合形状を許可（上限はプレイ60-90秒の担保、SPEC §12.4）
+  const [arcMin, arcMax] = levelNum >= 21 ? [800, 4500] : [500, 3000];
+  if (arc < arcMin || arc > arcMax) errors.push(`arc length ${arc.toFixed(0)}px out of [${arcMin},${arcMax}]`);
+  // v1.1 拡張フィールド（SPEC §12.4）
+  if (level.holdRadius !== undefined) {
+    if (typeof level.holdRadius !== 'number' || level.holdRadius < 28 || level.holdRadius > 45) {
+      errors.push(`holdRadius ${level.holdRadius} out of [28,45]`);
+    }
+  }
+  if (level.memory !== undefined) {
+    const m = level.memory;
+    if (typeof m !== 'object' || m === null) errors.push('memory must be object');
+    else {
+      if (!(m.previewGraceMs >= 2000 && m.previewGraceMs <= 6000)) errors.push(`memory.previewGraceMs ${m.previewGraceMs} out of [2000,6000]`);
+      if (!(m.echoMs >= 1500 && m.echoMs <= 5000)) errors.push(`memory.echoMs ${m.echoMs} out of [1500,5000]`);
+    }
+  }
+  if (level.branches !== undefined) {
+    if (!Array.isArray(level.branches)) errors.push('branches must be array');
+    else {
+      const goal = level.path[level.path.length - 1];
+      level.branches.forEach((br, bi) => {
+        if (!Array.isArray(br) || br.length < 2) {
+          errors.push(`branch ${bi} must have ≥2 points`);
+          return;
+        }
+        for (const [x, y] of br) {
+          if (x < 100 || x > 1180 || y < 100 || y > 700) {
+            errors.push(`branch ${bi} point out of bounds: [${x},${y}]`);
+            break;
+          }
+        }
+        for (let i = 1; i < br.length; i++) {
+          const d = dist(br[i - 1], br[i]);
+          if (d < 10 || d > 80) {
+            errors.push(`branch ${bi} point spacing ${d.toFixed(1)}px out of [10,80]`);
+            break;
+          }
+        }
+        // 終端はゴールから離す（ゴール誤発火防止、SPEC §12.4）
+        const end = br[br.length - 1];
+        if (dist(end, goal) < 150) errors.push(`branch ${bi} end ${dist(end, goal).toFixed(0)}px from goal (<150)`);
+        // 起点は主経路の上にあること
+        let anchorDist = Infinity;
+        for (const p of level.path) anchorDist = Math.min(anchorDist, dist(br[0], p));
+        if (anchorDist > level.width) errors.push(`branch ${bi} anchor ${anchorDist.toFixed(0)}px from main path (> width ${level.width})`);
+      });
+    }
+  }
   const [minStops, maxStops] = stopsBands[band];
   if (level.stops.length < minStops || level.stops.length > maxStops) {
     errors.push(`stops count ${level.stops.length} out of band [${minStops},${maxStops}]`);

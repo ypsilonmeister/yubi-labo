@@ -37,6 +37,11 @@ function validateEntry(entry, idx) {
 
   if (errors.length > 0) return { id: id || `entry-${idx}`, errors, warnings };
 
+  // labOnly (optional, SPEC §12.7): 合成ラボ専用の発見対象
+  if (entry.labOnly !== undefined && typeof entry.labOnly !== 'boolean') {
+    errors.push('labOnly must be boolean');
+  }
+
   // meaningEmoji: exactly 2 strings
   if (entry.meaningEmoji.length !== 2 || !entry.meaningEmoji.every(e => typeof e === 'string')) {
     errors.push('meaningEmoji must be exactly 2 strings');
@@ -112,20 +117,35 @@ function validateEntry(entry, idx) {
 
 const results = data.map((e, i) => validateEntry(e, i));
 
-// Check required chars exactly
+// Check required chars present (v1.1: ≥12 with the original 12 always included)
 const charSet = new Set();
 for (const r of results) {
   if (charSet.has(r.char)) r.errors.push('duplicate char');
   charSet.add(r.char);
 }
-if (charSet.size !== 12) {
-  console.log(`FAIL: exactly 12 chars required, found ${charSet.size}`);
+if (charSet.size < 12) {
+  console.log(`FAIL: at least 12 chars required, found ${charSet.size}`);
   process.exit(1);
 }
 for (const char of REQUIRED_CHARS) {
   if (!charSet.has(char)) {
     console.log(`FAIL: required char missing: ${char}`);
     process.exit(1);
+  }
+}
+
+// Part-multiset uniqueness (SPEC §12.7): no two entries may share the same
+// multiset of part glyphs, or the ごうせいラボ recipe lookup becomes ambiguous.
+const multisetOwners = new Map();
+for (const e of data) {
+  if (!Array.isArray(e.parts)) continue;
+  const key = e.parts.map((p) => p.glyph).sort().join('+');
+  if (multisetOwners.has(key)) {
+    const other = multisetOwners.get(key);
+    const r = results.find((rr) => rr.id === e.id);
+    if (r) r.errors.push(`part-multiset {${key}} collides with ${other}`);
+  } else {
+    multisetOwners.set(key, e.id);
   }
 }
 

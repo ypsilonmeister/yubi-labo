@@ -19,6 +19,8 @@ export interface MojiMetrics {
   stage: number;
   cardCount: number;
   challenge: boolean;
+  word?: string; // ことばモード（SPEC §12.6）
+  steps?: number; // 単語の文字数
   [key: string]: unknown;
 }
 
@@ -30,16 +32,18 @@ export interface MojiCharStat {
 
 // 永続化（IndexedDB progress, key 'moji.progress'）
 export interface MojiProgress {
-  stage: number; // 出題段階 0-5（§7.3 の 1〜6 に対応）
+  stage: number; // 出題段階 0-9（§7.3 / §12.6）
   setsCompleted: number; // ききとりセット完了数（星コレクション＆チャレンジ解禁）
   stars: number; // 集めた星の数（コレクション）
-  challengeBest: number; // チャレンジ自己ベスト（枚数）
+  challengeBest: number; // チャレンジ自己ベスト（枚数、旧: 互換のため保持）
+  challengeBestByStage?: Record<number, number>; // §12.6 段階別ベスト
   charStats: Record<string, MojiCharStat>;
 }
 
 export const QUESTIONS_PER_SET = 8; // §7.2-4 8問で1セット
 export const MIN_CARDS = 4; // §7.2-1 / §7.3
 export const MAX_CARDS = 9;
+export const WORD_MAX_CARDS = 12; // §12.6 単語ステージのカード上限
 export const START_CARDS = 5;
 
 export const CHALLENGE_MS = 60_000; // §7.4 60秒

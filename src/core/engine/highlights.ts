@@ -5,7 +5,7 @@ import { getAllSessions, type PlayRecord, type SessionRecord } from '../storage/
 
 export interface Highlight {
   play: PlayRecord;
-  reason: 'first-kanji' | 'self-best' | 'last-clear';
+  reason: 'first-kanji' | 'first-discovery' | 'self-best' | 'last-clear';
 }
 
 function mazeOutRatio(p: PlayRecord): number | null {
@@ -35,6 +35,16 @@ export function selectHighlights(
   );
   for (const p of firstKanji) {
     if (picks.length < max) picks.push({ play: p, reason: 'first-kanji' });
+  }
+
+  // ①' はじめての発見（ごうせいラボ §12.7）: 初完成漢字の直後の優先度
+  const firstDiscovery = completed.filter(
+    (p) => p.game === 'lab' && p.metrics['firstDiscovery'] === true,
+  );
+  for (const p of firstDiscovery) {
+    if (picks.length < max && !picks.some((h) => h.play === p)) {
+      picks.push({ play: p, reason: 'first-discovery' });
+    }
   }
 
   // ②自己ベスト: 過去より低い outRatio、または過去最高レベルの更新

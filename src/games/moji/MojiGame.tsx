@@ -6,7 +6,17 @@ import { createPointerSource } from '../../core/input/inputProvider';
 import { ReplayRecorder } from '../../core/engine/ReplayRecorder';
 import { getSetting, type PlayRecord } from '../../core/storage/db';
 import { loadKanjiProgress, type KanjiProgressMap } from '../kanji/scheduler';
-import { distractorSource, stagePool, stageUsesConfusable } from './data';
+import {
+  distractorSource,
+  isWordStage,
+  MAX_STAGE,
+  stagePool,
+  stageUsesConfusable,
+  wordDistractorPool,
+  wordKanaChar,
+  wordsForStage,
+  type WordEntry,
+} from './data';
 import {
   isLowAccuracy,
   loadMojiProgress,
@@ -26,6 +36,7 @@ import {
   SLOW_SEARCH_STREAK,
   START_CARDS,
   STUCK_MS,
+  WORD_MAX_CARDS,
   type MojiChar,
   type MojiMetrics,
   type MojiProgress,
@@ -39,8 +50,9 @@ const KANJI_FONT = '"UD デジタル 教科書体 N-R", "UD Digi Kyokasho N-R", 
 
 // カード配置領域（§7.2-1 重ならない・最小間隔100px）
 const AREA = { x0: 180, y0: 156, x1: 1100, y1: 690 };
-const CARD = 132; // カード一辺
-const HALF = CARD / 2;
+const CARD = 132; // カード一辺（標準）
+const SMALL_CARD = 106; // 10枚以上のとき（ことばモード §12.6）
+const WORD_AREA_TOP = 200; // ことばモードはスロット行のぶんカードを下げる
 
 type Phase = 'search' | 'burst' | 'setclear' | 'challengeend';
 
@@ -50,18 +62,28 @@ interface Card {
   y: number;
 }
 
+// ことばモード（SPEC §12.6）: 単語を順番に綴る
+interface WordState {
+  entry: WordEntry;
+  kana: string[]; // 順番のターゲット列
+  stepIndex: number;
+  consumed: boolean[]; // カードごと（正しい順に消費）
+}
+
 interface QState {
   target: MojiChar;
   cards: Card[];
-  correctIndex: number;
+  correctIndex: number; // 単語モードでは -1
   distractors: string[];
   cardCount: number;
+  size: number; // カード一辺（枚数で可変）
   startedAt: number; // 出題（音声）時刻: 反応時間とreplayの基準
   wrongTaps: number;
   stuckAssisted: boolean; // §8 90秒停滞→半自動化済み
   wrongPulseIndex: number; // 直近に触れた他カード（やさしいパルス表示用）
   wrongPulseStart: number;
   recorder: ReplayRecorder;
+  word: WordState | null;
 }
 
 export function MojiGame({
@@ -112,6 +134,7 @@ export function MojiGame({
     };
     let kanjiProg: KanjiProgressMap = {};
     let challengeEnabled = true; // §7.4 保護者画面で無効化できる想定
+    let wordStagesEnabled = true; // §12.6 ことばモード（stage7+）を保護者が無効化できる
     let challengeUnlocked = false; // 3セット完了で⚡出現
     let challengeActive = false;
     let challengeEndAt = 0;
@@ -132,29 +155,38 @@ export function MojiGame({
     });
     void source.start();
 
-    // 最小100px間隔を保証するジッタ付きグリッド配置（§7.2-1）
-    function layoutCards(count: number): [number, number][] {
+    // ジッタ付きグリッド配置。最小間隔 minGap（§7.2-1）。ことばモードは top を下げる。
+    function layoutCards(
+      count: number,
+      size = CARD,
+      minGap = 100,
+      top = AREA.y0,
+    ): [number, number][] {
       const cols = Math.ceil(Math.sqrt(count));
       const rows = Math.ceil(count / cols);
       const w = (AREA.x1 - AREA.x0) / cols;
-      const h = (AREA.y1 - AREA.y0) / rows;
+      const h = (AREA.y1 - top) / rows;
       const cells = Array.from({ length: cols * rows }, (_, i) => i);
       for (let i = cells.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [cells[i], cells[j]] = [cells[j]!, cells[i]!];
       }
-      const jx = Math.max(0, (w - CARD - 100) / 2);
-      const jy = Math.max(0, (h - CARD - 100) / 2);
+      const jx = Math.max(0, (w - size - minGap) / 2);
+      const jy = Math.max(0, (h - size - minGap) / 2);
       return cells.slice(0, count).map((cell) => {
         const cx = cell % cols;
         const cy = Math.floor(cell / cols);
         const x = AREA.x0 + w * (cx + 0.5) + (Math.random() * 2 - 1) * jx;
-        const y = AREA.y0 + h * (cy + 0.5) + (Math.random() * 2 - 1) * jy;
+        const y = top + h * (cy + 0.5) + (Math.random() * 2 - 1) * jy;
         return [x, y];
       });
     }
 
     function loadQuestion(now: number): void {
+      if (isWordStage(progress.stage)) {
+        loadWordQuestion(now);
+        return;
+      }
       const pool = stagePool(progress.stage, kanjiProg);
       const target = pickTarget(pool, progress, lastChar);
       lastChar = target.char;
@@ -178,17 +210,73 @@ export function MojiGame({
         correctIndex,
         distractors: chosen.filter((c) => c.char !== target.char).map((c) => c.char),
         cardCount: chosen.length,
+        size: CARD,
         startedAt: now,
         wrongTaps: 0,
         stuckAssisted: false,
         wrongPulseIndex: -1,
         wrongPulseStart: 0,
         recorder,
+        word: null,
       };
       phase = 'search';
       phaseStart = now;
       // §7.2-2 出題音声「『ね』は どこかな？」（音＝reading を読む）
       audioGuide.speak('moji.q', { char: target.reading });
+    }
+
+    // ことばモード（SPEC §12.6）: 単語をカードから順番にタップして綴る
+    function loadWordQuestion(now: number): void {
+      const words = wordsForStage(progress.stage);
+      const avoid = words.filter((w) => w.word !== lastChar);
+      const bag = avoid.length > 0 ? avoid : words;
+      const entry = bag[Math.floor(Math.random() * bag.length)]!;
+      lastChar = entry.word;
+      const kata = !!entry.kata;
+      const wordCards: MojiChar[] = entry.kana.map((k) => wordKanaChar(k, kata));
+
+      // ダミー: 綴りに使わない字。カード上限 12 の範囲で cardCount に応じて増減。
+      const kanaSet = new Set(entry.kana);
+      const pool = wordDistractorPool(progress.stage).filter((c) => !kanaSet.has(c.char));
+      const distractorCount = Math.max(2, Math.min(cardCount, WORD_MAX_CARDS - wordCards.length));
+      const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+      const usedD = new Set<string>();
+      const chosenD: MojiChar[] = [];
+      for (const c of shuffledPool) {
+        if (chosenD.length >= distractorCount) break;
+        if (usedD.has(c.char)) continue;
+        usedD.add(c.char);
+        chosenD.push(c);
+      }
+
+      const all = [...wordCards, ...chosenD];
+      const order = all.map((_, i) => i).sort(() => Math.random() - 0.5);
+      const shuffledChars = order.map((i) => all[i]!);
+      const total = shuffledChars.length;
+      const size = total > 9 ? SMALL_CARD : CARD;
+      const pos = layoutCards(total, size, total > 9 ? 70 : 100, WORD_AREA_TOP);
+      const cards: Card[] = shuffledChars.map((ch, i) => ({ ch, x: pos[i]![0], y: pos[i]![1] }));
+
+      const recorder = new ReplayRecorder();
+      recorder.start();
+      q = {
+        target: wordCards[0]!,
+        cards,
+        correctIndex: -1,
+        distractors: chosenD.map((c) => c.char),
+        cardCount: total,
+        size,
+        startedAt: now,
+        wrongTaps: 0,
+        stuckAssisted: false,
+        wrongPulseIndex: -1,
+        wrongPulseStart: 0,
+        recorder,
+        word: { entry, kana: entry.kana, stepIndex: 0, consumed: new Array(total).fill(false) },
+      };
+      phase = 'search';
+      phaseStart = now;
+      audioGuide.speak('moji.word.q', { word: entry.word });
     }
 
     // 難易度の静かな調整（§7.3 / §8。本人に通知しない §8）
@@ -227,13 +315,14 @@ export function MojiGame({
     function recordPlay(now: number, correct: boolean, reactionMs: number): void {
       if (!q) return;
       const metrics: MojiMetrics = {
-        char: q.target.char,
+        char: q.word ? q.word.entry.word : q.target.char,
         correct,
         reactionMs: Math.round(reactionMs),
         distractors: q.distractors,
         stage: progress.stage,
         cardCount: q.cardCount,
         challenge: challengeActive,
+        ...(q.word ? { word: q.word.entry.word, steps: q.word.kana.length } : {}),
       };
       onPlayRef.current({
         game: 'moji',
@@ -255,7 +344,10 @@ export function MojiGame({
 
     function canAdvanceStage(): boolean {
       const next = progress.stage + 1;
-      if (next > 5) return false;
+      if (next > MAX_STAGE) return false;
+      if (isWordStage(next)) {
+        return wordStagesEnabled && wordsForStage(next).length >= 1;
+      }
       return stagePool(next, kanjiProg).length > 0;
     }
 
@@ -286,6 +378,43 @@ export function MojiGame({
         char: q.cards[index]!.ch.reading,
         target: q.target.reading,
       });
+    }
+
+    // ことばモードのカードタップ（SPEC §12.6）。順番どおりなら消費、違えば案内のみ。
+    function handleWordTap(now: number, index: number): void {
+      if (!q || !q.word) return;
+      if (q.word.consumed[index]) return; // 既に綴りに使ったカード
+      const card = q.cards[index]!;
+      const need = q.word.kana[q.word.stepIndex]!;
+      if (card.ch.char === need) {
+        q.word.consumed[index] = true;
+        audioGuide.chime();
+        if (need !== 'っ') audioGuide.speakText(need); // 促音は単体で読ませない
+        q.word.stepIndex += 1;
+        if (q.word.stepIndex >= q.word.kana.length) wordComplete(now);
+      } else {
+        // 順番違いも誤答扱いにしない（NO-FAIL）。次に探す字を案内するだけ。
+        q.wrongTaps += 1;
+        q.wrongPulseIndex = index;
+        q.wrongPulseStart = now;
+        audioGuide.speak('moji.other.seq', { char: card.ch.reading, target: need });
+      }
+    }
+
+    function wordComplete(now: number): void {
+      if (!q || !q.word) return;
+      const reactionMs = now - q.startedAt;
+      const correct = q.wrongTaps === 0;
+      audioGuide.chime();
+      audioGuide.speak('moji.word.done', { word: q.word.entry.word });
+      updateStats(progress, q.word.entry.word, correct, reactionMs);
+      recordPlay(now, correct, reactionMs);
+      adapt(q.word.entry.word, correct, reactionMs);
+      burstIndex = -1; // 単語モードは絵文字演出（drawで対応）
+      phase = 'burst';
+      phaseStart = now;
+      if (challengeActive) challengeCount += 1;
+      else questionsInSet += 1;
     }
 
     function beginSetClear(now: number): void {
@@ -319,6 +448,9 @@ export function MojiGame({
     function endChallenge(now: number): void {
       challengeActive = false;
       if (challengeCount > progress.challengeBest) progress.challengeBest = challengeCount;
+      // §12.6 段階別ベスト
+      const byStage = progress.challengeBestByStage ?? (progress.challengeBestByStage = {});
+      if (challengeCount > (byStage[progress.stage] ?? 0)) byStage[progress.stage] = challengeCount;
       void saveMojiProgress(progress);
       // §7.4 成果側だけを言う（カウントダウン音・警告音は無し）
       audioGuide.speak('moji.challenge.end', { n: challengeCount });
@@ -372,10 +504,12 @@ export function MojiGame({
                 break;
               }
             }
+            const half = q.size / 2;
             for (let i = 0; i < q.cards.length; i++) {
               const c = q.cards[i]!;
-              if (Math.abs(pointer.x - c.x) < HALF && Math.abs(pointer.y - c.y) < HALF) {
-                if (i === q.correctIndex) onCorrect(now);
+              if (Math.abs(pointer.x - c.x) < half && Math.abs(pointer.y - c.y) < half) {
+                if (q.word) handleWordTap(now, i);
+                else if (i === q.correctIndex) onCorrect(now);
                 else onWrongTap(now, i);
                 break;
               }
@@ -412,7 +546,8 @@ export function MojiGame({
       }
     }
 
-    function drawCard(c: Card, scale: number, alpha: number, glow: number): void {
+    function drawCard(c: Card, scale: number, alpha: number, glow: number, size = CARD): void {
+      const half = size / 2;
       ctx!.save();
       ctx!.globalAlpha = alpha;
       ctx!.translate(c.x, c.y);
@@ -423,15 +558,49 @@ export function MojiGame({
       }
       ctx!.fillStyle = 'rgba(247, 243, 232, 0.96)';
       ctx!.beginPath();
-      ctx!.roundRect(-HALF, -HALF, CARD, CARD, 22);
+      ctx!.roundRect(-half, -half, size, size, 22);
       ctx!.fill();
       ctx!.shadowBlur = 0;
       ctx!.fillStyle = '#2b2b33';
-      ctx!.font = `${CARD * 0.6}px ${KANJI_FONT}`;
+      // 複数コードポイント（拗音・促音）は字数でフォント縮小（§12.6）
+      const glyphLen = [...c.ch.char].length;
+      ctx!.font = `${(size * 0.6) / Math.max(1, glyphLen * 0.62)}px ${KANJI_FONT}`;
       ctx!.textAlign = 'center';
       ctx!.textBaseline = 'middle';
       ctx!.fillText(c.ch.char, 0, 6);
       ctx!.restore();
+    }
+
+    // ことばモードの綴りスロット行（テキスト解禁の活用、§12.6）
+    function drawWordSlots(): void {
+      if (!q || !q.word) return;
+      const kana = q.word.kana;
+      const n = kana.length;
+      const slotW = 84;
+      const gap = 14;
+      const sy = 96;
+      const totalW = n * slotW + (n - 1) * gap;
+      const sx = 640 - totalW / 2;
+      for (let i = 0; i < n; i++) {
+        const x = sx + i * (slotW + gap);
+        ctx!.save();
+        ctx!.fillStyle = 'rgba(247, 243, 232, 0.16)';
+        ctx!.strokeStyle = 'rgba(200, 230, 250, 0.5)';
+        ctx!.lineWidth = 3;
+        ctx!.beginPath();
+        ctx!.roundRect(x, sy, slotW, slotW, 16);
+        ctx!.fill();
+        ctx!.stroke();
+        if (i < q.word.stepIndex) {
+          ctx!.fillStyle = '#f2ecdc';
+          const glyphLen = [...kana[i]!].length;
+          ctx!.font = `${(slotW * 0.62) / Math.max(1, glyphLen * 0.62)}px ${KANJI_FONT}`;
+          ctx!.textAlign = 'center';
+          ctx!.textBaseline = 'middle';
+          ctx!.fillText(kana[i]!, x + slotW / 2, sy + slotW / 2 + 4);
+        }
+        ctx!.restore();
+      }
     }
 
     function draw(now: number): void {
@@ -447,11 +616,15 @@ export function MojiGame({
       } else if (phase === 'setclear') {
         drawStarResult(now, progress.stars, false);
       } else if (q) {
+        // ことばモード: 綴りスロット行と、消費済み以外のカード
+        if (q.word && phase === 'search') drawWordSlots();
+        const nextNeed = q.word ? q.word.kana[q.word.stepIndex] : null;
         for (let i = 0; i < q.cards.length; i++) {
           const c = q.cards[i]!;
+          if (q.word && q.word.consumed[i]) continue; // スロットへ移動済み
           if (phase === 'burst' && i === burstIndex) {
             const t = Math.min(1, (now - phaseStart) / 650);
-            drawCard(c, 1 + t * 0.5, 1 - t, 0.9 * (1 - t));
+            drawCard(c, 1 + t * 0.5, 1 - t, 0.9 * (1 - t), q.size);
             // 弾ける光の粒
             ctx!.save();
             ctx!.globalAlpha = 1 - t;
@@ -468,12 +641,13 @@ export function MojiGame({
           }
           if (phase === 'burst') {
             // 他カードはそっとフェード
-            drawCard(c, 1, Math.max(0, 1 - (now - phaseStart) / 400), 0);
+            drawCard(c, 1, Math.max(0, 1 - (now - phaseStart) / 400), 0, q.size);
             continue;
           }
-          // §8 半自動化: 正解カードをゆっくり点滅
+          // §8 半自動化: 正解カード（単語モードは次に必要な字）をゆっくり点滅
           let glow = 0;
-          if (q.stuckAssisted && i === q.correctIndex) {
+          const assistThis = q.word ? c.ch.char === nextNeed : i === q.correctIndex;
+          if (q.stuckAssisted && assistThis) {
             glow = 0.5 + 0.5 * Math.sin(now / 500);
           }
           // 他カードを触れた時のやさしいパルス（否定表示ではない）
@@ -482,7 +656,18 @@ export function MojiGame({
             const t = (now - q.wrongPulseStart) / 500;
             if (t < 1) scale = 1 + 0.06 * Math.sin(t * Math.PI);
           }
-          drawCard(c, scale, 1, glow);
+          drawCard(c, scale, 1, glow, q.size);
+        }
+        // 単語完成の絵文字演出
+        if (q.word && phase === 'burst') {
+          const t = Math.min(1, (now - phaseStart) / 650);
+          ctx!.save();
+          ctx!.globalAlpha = Math.min(1, t * 2);
+          ctx!.textAlign = 'center';
+          ctx!.textBaseline = 'middle';
+          ctx!.font = `${120 * (0.7 + 0.3 * t)}px serif`;
+          ctx!.fillText(q.word.entry.emoji, 640, 400);
+          ctx!.restore();
         }
 
         // §7.4 チャレンジの円タイマー（数字なし・警告なし）
@@ -552,7 +737,13 @@ export function MojiGame({
       progress = await loadMojiProgress();
       kanjiProg = await loadKanjiProgress();
       challengeEnabled = await getSetting<boolean>('moji.challenge.enabled', true);
+      wordStagesEnabled = await getSetting<boolean>('moji.wordStages.enabled', true);
       if (disposed) return;
+      // §12.6 段階別ベストの初回シード（旧データの challengeBest を引き継ぐ）
+      if (!progress.challengeBestByStage) progress.challengeBestByStage = {};
+      if (progress.challengeBestByStage[progress.stage] === undefined) {
+        progress.challengeBestByStage[progress.stage] = progress.challengeBest;
+      }
       challengeUnlocked = progress.setsCompleted >= SETS_TO_UNLOCK_CHALLENGE;
       loadQuestion(performance.now());
       const loop = () => {

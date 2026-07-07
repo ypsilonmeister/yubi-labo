@@ -12,6 +12,8 @@ export function HomeScreen({
   onOpenMaze,
   onOpenKanji,
   onOpenMoji,
+  onOpenLab,
+  labEnabled,
   onOpenFarm,
   onOpenZukan,
   onOpenParent,
@@ -22,6 +24,8 @@ export function HomeScreen({
   onOpenMaze: () => void;
   onOpenKanji: () => void;
   onOpenMoji: () => void;
+  onOpenLab: () => void;
+  labEnabled: boolean;
   onOpenFarm: () => void;
   onOpenZukan: () => void;
   onOpenParent: () => void;
@@ -49,13 +53,22 @@ export function HomeScreen({
       <div className="home-row">
         <button className="icon-button game-card" onClick={onOpenMaze} aria-label="ねっこのめいろ">
           🌱
+          <span className="card-label" aria-hidden="true">めいろ</span>
         </button>
         <button className="icon-button game-card" onClick={onOpenKanji} aria-label="かんじこうじょう">
           🧬
+          <span className="card-label" aria-hidden="true">かんじ</span>
         </button>
         <button className="icon-button game-card" onClick={onOpenMoji} aria-label="もじさがし">
           🔍
+          <span className="card-label" aria-hidden="true">もじ</span>
         </button>
+        {labEnabled && (
+          <button className="icon-button game-card" onClick={onOpenLab} aria-label="ごうせいラボ">
+            🧪
+            <span className="card-label" aria-hidden="true">ラボ</span>
+          </button>
+        )}
       </div>
       <div className="input-corner">
         <button

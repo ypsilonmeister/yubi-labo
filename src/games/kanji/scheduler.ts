@@ -1,6 +1,6 @@
 import { getProgress, getSetting, setProgress, setSetting } from '../../core/storage/db';
 import { KANJI_ENTRIES } from './data';
-import { REVIEW_INTERVALS_MS, type KanjiEntry, type KanjiProgress } from './types';
+import { REVIEW_INTERVALS_MS, type KanjiEntry, type KanjiLevel, type KanjiProgress } from './types';
 
 // SPEC §6.4 出題アルゴリズム: 未習1 : 復習2 で混ぜる（間隔反復の簡易版）。
 
@@ -35,18 +35,22 @@ export async function saveKanjiProgress(map: KanjiProgressMap): Promise<void> {
 }
 
 export function defaultProgress(): KanjiProgress {
-  return { level: 1, completions: 0, mastered: false, recallStar: false, dueAt: 0 };
+  return { level: 1, completions: 0, mastered: false, lv4Star: false, recallStar: false, dueAt: 0 };
 }
 
-// 完成時の進行更新: レベルは1段階ずつ上がり、Lv3ノーヒント完成でマスター
+// 完成時の進行更新: レベルは1段階ずつ上がる（上限Lv4）。
+// mastered = Lv3ノーヒント（定義は不変、モードC連携・図鑑金マークが依存）。
+// lv4Star = Lv4ノーヒント（図鑑👑）。
 export function advanceProgress(p: KanjiProgress, hintUsed: boolean, now: number): KanjiProgress {
   const mastered = p.mastered || (p.level === 3 && !hintUsed);
-  const level = (p.level < 3 ? p.level + 1 : 3) as 1 | 2 | 3;
+  const lv4Star = p.lv4Star || (p.level === 4 && !hintUsed);
+  const level = (p.level < 4 ? p.level + 1 : 4) as KanjiLevel;
   const interval = REVIEW_INTERVALS_MS[Math.min(p.completions, REVIEW_INTERVALS_MS.length - 1)];
   return {
     ...p,
     level,
     mastered,
+    lv4Star,
     completions: p.completions + 1,
     dueAt: now + interval,
   };
@@ -84,10 +88,14 @@ export function pickNext(
   return null;
 }
 
-// 想起チェック用のダミー選択肢2つ
+// 想起チェック用のダミー選択肢2つ。
+// パーツを共有する字（見た目が紛らわしい字）を優先し、視覚弁別を鍛える（SPEC §12.5）。
 export function pickDistractors(target: KanjiEntry): KanjiEntry[] {
-  // 出題範囲外でも「見分ける」だけなので全字から選んでよい
+  const targetGlyphs = new Set(target.parts.map((p) => p.glyph));
   const others = KANJI_ENTRIES.filter((e) => e.id !== target.id);
-  const shuffled = [...others].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 2);
+  const shares = others.filter((e) => e.parts.some((p) => targetGlyphs.has(p.glyph)));
+  const rest = others.filter((e) => !shares.some((s) => s.id === e.id));
+  const shuffle = <T,>(arr: T[]) => [...arr].sort(() => Math.random() - 0.5);
+  const ordered = [...shuffle(shares), ...shuffle(rest)];
+  return ordered.slice(0, 2);
 }

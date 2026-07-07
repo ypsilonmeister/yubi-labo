@@ -40,6 +40,18 @@ const SCRIPTS: Record<string, string> = {
   'moji.challenge.start': 'スタート！ すきなだけ さがそう！',
   'common.stuck': 'ちょっと むずかしいね。いっしょに やってみよう',
   'dummy.intro': 'ひかる ほしを ゆびで さわってみよう',
+  // ── v1.1 追加キー（SPEC §12） ──
+  'maze.memory.intro': 'この みちは すこしずつ かくれんぼするよ。よーく みちを おぼえてから すすんでね',
+  'maze.branch.intro': 'みちが わかれてるよ。いきどまりでも だいじょうぶ、もどって べつの みちを ためそう',
+  'kanji.lv4.intro': 'きょうは おとだけで つくってみよう。いらない パーツも まざってるよ',
+  'kanji.recall.read.q': 'この かんじ、なんて よむ？',
+  'lab.intro': 'すきな パーツを くっつけて じっけんしよう。なにが できるかな',
+  'lab.discover': 'はっけん！ {reading} が できた！',
+  'lab.jukugo': 'すごい はっけん！ {word}！',
+  'moji.word.q': '{word} を じゅんばんに つくってみよう',
+  'moji.word.step': 'つぎは {char} だよ',
+  'moji.word.done': 'できた！ {word}！',
+  'moji.other.seq': 'それは {char} だね。つぎは {target} を さがそう',
 };
 
 class AudioGuide {

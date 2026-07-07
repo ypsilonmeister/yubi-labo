@@ -75,10 +75,22 @@ body {
 }
 
 .game-card {
-  width: 300px;
-  height: 300px;
-  font-size: 150px;
+  width: 240px;
+  height: 240px;
+  font-size: 120px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* テキスト解禁（SPEC §12.2）: 音声が主・文字は従の補助ラベル */
+.card-label {
+  font-family: 'UD デジタル 教科書体 N-R', 'UD Digi Kyokasho N-R', 'Klee One', sans-serif;
+  font-size: 28px;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .visual-timer {
@@ -161,7 +173,10 @@ body {
 
 .home-row {
   display: flex;
-  gap: 80px;
+  gap: 56px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 1180px;
 }
 
 .zukan-button {
@@ -173,22 +188,26 @@ body {
   font-size: 60px;
 }
 
-/* ぶんしずかん（SPEC §6.5）: 分子カードのグリッド */
+/* ぶんしずかん（SPEC §6.5）: 分子カードのグリッド。字数増（§12.5）でスクロール可 */
 .zukan-grid {
   display: grid;
-  grid-template-columns: repeat(4, 180px);
-  gap: 28px;
+  grid-template-columns: repeat(6, 132px);
+  gap: 18px;
+  max-height: 680px;
+  overflow-y: auto;
+  padding: 8px 12px;
 }
 
 .zukan-card {
   position: relative;
-  width: 180px;
-  height: 180px;
+  width: 132px;
+  height: 132px;
   border: none;
-  border-radius: 26px;
+  border-radius: 22px;
   background: rgba(247, 243, 232, 0.94);
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
@@ -213,16 +232,31 @@ body {
 
 .zukan-char {
   font-family: 'UD デジタル 教科書体 N-R', 'UD Digi Kyokasho N-R', 'Klee One', serif;
-  font-size: 110px;
+  font-size: 76px;
   color: #2b2b33;
   line-height: 1;
 }
 
+.zukan-reading {
+  font-family: 'UD デジタル 教科書体 N-R', 'UD Digi Kyokasho N-R', 'Klee One', serif;
+  font-size: 18px;
+  color: #6a6a72;
+  line-height: 1;
+  margin-top: 2px;
+}
+
 .zukan-star {
   position: absolute;
-  top: 8px;
-  right: 12px;
-  font-size: 34px;
+  top: 6px;
+  right: 10px;
+  font-size: 26px;
+}
+
+.zukan-crown {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: 26px;
 }
 
 /* ── P3 ハンドトラッキング（SPEC §4.2）───────────────────── */
@@ -507,6 +541,29 @@ body {
 .parent-settings select,
 .parent-settings input[type='range'] {
   font-size: 15px;
+}
+
+.parent-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.parent-inline-button {
+  border: 1px solid #bbb;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.parent-kanji-group h3 {
+  margin: 12px 0 6px;
+  font-size: 15px;
+  color: #555;
 }
 
 .parent-kanji-grid {

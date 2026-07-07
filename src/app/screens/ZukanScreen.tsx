@@ -34,6 +34,8 @@ export function ZukanScreen({ onBack }: { onBack: () => void }) {
               }}
             >
               <span className="zukan-char">{entry.char}</span>
+              <span className="zukan-reading" aria-hidden="true">{entry.reading}</span>
+              {p.lv4Star && <span className="zukan-crown">👑</span>}
               {p.recallStar && <span className="zukan-star">✨</span>}
             </button>
           );

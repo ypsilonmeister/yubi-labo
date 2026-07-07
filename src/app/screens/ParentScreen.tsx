@@ -3,6 +3,7 @@ import { audioGuide } from '../../core/audio/AudioGuide';
 import {
   exportAll,
   getAllSessions,
+  getProgress,
   getSetting,
   importAll,
   isMemoryMode,
@@ -11,6 +12,7 @@ import {
   type SessionRecord,
 } from '../../core/storage/db';
 import { KANJI_ENTRIES } from '../../games/kanji/data';
+import { MAZE_LEVELS } from '../../games/maze/levels';
 import {
   loadEnabledKanjiIds,
   loadKanjiProgress,
@@ -91,18 +93,26 @@ export function ParentScreen({ onBack }: { onBack: () => void }) {
   const [gesture, setGesture] = useState<'dwell' | 'pinch'>('dwell');
   const [volume, setVolume] = useState(1);
   const [challengeOk, setChallengeOk] = useState(true);
+  const [wordStagesOk, setWordStagesOk] = useState(true);
+  const [labOk, setLabOk] = useState(true);
+  const [difficultyMode, setDifficultyMode] = useState<'auto' | 'gentle' | 'challenge'>('auto');
+  const [mojiStage, setMojiStage] = useState(0);
+  const [labCount, setLabCount] = useState(0);
   const [enabledIds, setEnabledIds] = useState<string[]>(KANJI_ENTRIES.map((e) => e.id));
   const [notice, setNotice] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = async () => {
-    const [ss, kp, min, ges, vol, ch, ids] = await Promise.all([
+    const [ss, kp, min, ges, vol, ch, ws, lab, dm, ids] = await Promise.all([
       getAllSessions(),
       loadKanjiProgress(),
       getSetting('sessionMinutes', 5),
       getSetting<'dwell' | 'pinch'>('hand.gesture', 'dwell'),
       getSetting('volume', 1),
       getSetting('moji.challenge.enabled', true),
+      getSetting('moji.wordStages.enabled', true),
+      getSetting('lab.enabled', true),
+      getSetting<'auto' | 'gentle' | 'challenge'>('maze.difficultyMode', 'auto'),
       loadEnabledKanjiIds(),
     ]);
     setSessions(ss.filter((s) => s.endedAt > 0).sort((a, b) => a.startedAt - b.startedAt));
@@ -111,7 +121,16 @@ export function ParentScreen({ onBack }: { onBack: () => void }) {
     setGesture(ges);
     setVolume(vol);
     setChallengeOk(ch);
+    setWordStagesOk(ws);
+    setLabOk(lab);
+    setDifficultyMode(dm);
     setEnabledIds(ids ?? KANJI_ENTRIES.map((e) => e.id));
+    const [mp, labDisc] = await Promise.all([
+      getProgress<{ stage: number }>('moji.progress', { stage: 0 }),
+      getProgress<string[]>('lab.discovered', []),
+    ]);
+    setMojiStage(mp.stage ?? 0);
+    setLabCount(labDisc.length);
   };
 
   useEffect(() => {
@@ -173,8 +192,9 @@ export function ParentScreen({ onBack }: { onBack: () => void }) {
     const entries = Object.values(kanjiProgress);
     const learned = entries.filter((p) => p.completions > 0).length;
     const mastered = entries.filter((p) => p.mastered).length;
+    const lv4 = entries.filter((p) => p.lv4Star).length;
     const stars = entries.filter((p) => p.recallStar).length;
-    return { learned, mastered, stars };
+    return { learned, mastered, lv4, stars };
   }, [kanjiProgress]);
 
   // ── ③ 設定ハンドラ ──
@@ -195,12 +215,31 @@ export function ParentScreen({ onBack }: { onBack: () => void }) {
     setChallengeOk(v);
     void setSetting('moji.challenge.enabled', v);
   };
+  const changeWordStages = (v: boolean) => {
+    setWordStagesOk(v);
+    void setSetting('moji.wordStages.enabled', v);
+  };
+  const changeLab = (v: boolean) => {
+    setLabOk(v);
+    void setSetting('lab.enabled', v);
+  };
+  const changeDifficulty = (v: 'auto' | 'gentle' | 'challenge') => {
+    setDifficultyMode(v);
+    void setSetting('maze.difficultyMode', v);
+  };
   const toggleKanji = (id: string) => {
     const next = enabledIds.includes(id)
       ? enabledIds.filter((x) => x !== id)
       : [...enabledIds, id];
     setEnabledIds(next);
     void saveEnabledKanjiIds(next);
+  };
+  // 新収録字の一括有効化（移行用。旧データは12字分の配列のため新字が出題されない、SPEC §12.8）
+  const enableAllKanji = () => {
+    const all = KANJI_ENTRIES.map((e) => e.id);
+    setEnabledIds(all);
+    void saveEnabledKanjiIds(all);
+    setNotice('すべての字を出題対象にしました');
   };
 
   // ── ④ エクスポート/インポート ──
@@ -253,11 +292,11 @@ export function ParentScreen({ onBack }: { onBack: () => void }) {
           </div>
           <div>
             <h3>迷路: 到達レベル</h3>
-            <TrendChart points={trends.mazeLv} color="#4a9b52" unit="" yMaxHint={20} />
+            <TrendChart points={trends.mazeLv} color="#4a9b52" unit="" yMaxHint={MAZE_LEVELS.length} />
           </div>
           <div>
             <h3>漢字: 完成した字（累積）</h3>
-            <TrendChart points={trends.kanjiCount} color="#b06fb8" unit="字" yMaxHint={12} />
+            <TrendChart points={trends.kanjiCount} color="#b06fb8" unit="字" yMaxHint={KANJI_ENTRIES.length} />
           </div>
           <div>
             <h3>もじさがし: 平均反応時間</h3>
@@ -266,7 +305,11 @@ export function ParentScreen({ onBack }: { onBack: () => void }) {
         </div>
         <p className="parent-note">
           漢字の定着: 完成 {kanjiStats.learned}/{KANJI_ENTRIES.length} ・ マスター{' '}
-          {kanjiStats.mastered} ・ 想起チェック正解 {kanjiStats.stars}
+          {kanjiStats.mastered} ・ Lv4達成 {kanjiStats.lv4} ・ 想起チェック正解 {kanjiStats.stars}
+        </p>
+        <p className="parent-note">
+          もじさがし: 到達ステージ {mojiStage + 1}/10 ・ ごうせいラボ: 発見した字{' '}
+          {labCount}/{KANJI_ENTRIES.length}
         </p>
       </section>
 
@@ -340,6 +383,17 @@ export function ParentScreen({ onBack }: { onBack: () => void }) {
             />
           </label>
           <label>
+            むずかしさ（迷路）
+            <select
+              value={difficultyMode}
+              onChange={(e) => changeDifficulty(e.target.value as 'auto' | 'gentle' | 'challenge')}
+            >
+              <option value="auto">じどう（おすすめ）</option>
+              <option value="gentle">やさしめ</option>
+              <option value="challenge">ちょうせん</option>
+            </select>
+          </label>
+          <label>
             <input
               type="checkbox"
               checked={challengeOk}
@@ -347,24 +401,52 @@ export function ParentScreen({ onBack }: { onBack: () => void }) {
             />
             もじさがしのチャレンジモードを許可する
           </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={wordStagesOk}
+              onChange={(e) => changeWordStages(e.target.checked)}
+            />
+            もじさがしの「ことばモード」を出す
+          </label>
+          <label>
+            <input type="checkbox" checked={labOk} onChange={(e) => changeLab(e.target.checked)} />
+            ホームに「ごうせいラボ」を出す
+          </label>
         </div>
       </section>
 
       <section className="parent-section">
-        <h2>漢字の出題範囲</h2>
-        <div className="parent-kanji-grid">
-          {KANJI_ENTRIES.map((e) => (
-            <label key={e.id} className="parent-kanji-check">
-              <input
-                type="checkbox"
-                checked={enabledIds.includes(e.id)}
-                onChange={() => toggleKanji(e.id)}
-              />
-              {e.char}
-            </label>
-          ))}
+        <div className="parent-section-head">
+          <h2>漢字の出題範囲</h2>
+          <button className="parent-inline-button" onClick={enableAllKanji}>
+            すべての字を有効化（新しい字を含む）
+          </button>
         </div>
-        <p className="parent-note">すべて外した場合は全字が出題されます</p>
+        {[1, 2].map((grade) => {
+          const group = KANJI_ENTRIES.filter((e) => e.grade === grade);
+          if (group.length === 0) return null;
+          return (
+            <div key={grade} className="parent-kanji-group">
+              <h3>{grade}年生の漢字</h3>
+              <div className="parent-kanji-grid">
+                {group.map((e) => (
+                  <label key={e.id} className="parent-kanji-check">
+                    <input
+                      type="checkbox"
+                      checked={enabledIds.includes(e.id)}
+                      onChange={() => toggleKanji(e.id)}
+                    />
+                    {e.char}
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        <p className="parent-note">
+          新しい字は最初オフになっています。「すべての字を有効化」で追加できます。すべて外した場合は全字が出題されます。
+        </p>
       </section>
 
       <section className="parent-section">

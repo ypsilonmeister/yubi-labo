@@ -10,7 +10,7 @@ export interface ReplaySample {
 }
 
 export interface PlayRecord {
-  game: 'maze' | 'kanji' | 'moji' | 'dummy'; // 'dummy' は P0 検証用
+  game: 'maze' | 'kanji' | 'moji' | 'lab' | 'dummy'; // 'lab' = ごうせいラボ §12.7、'dummy' は P0 検証用
   levelId: string;
   startedAt: number;
   durationMs: number;

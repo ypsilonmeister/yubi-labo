@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "validate": "node scripts/validate-mazes.mjs src/data/mazes.json && node scripts/validate-kanji.mjs src/data/kanji.json && node scripts/validate-words.mjs src/data/words.json && node scripts/validate-jukugo.mjs src/data/jukugo.json src/data/kanji.json",
     "preview": "vite preview",
     "postinstall": "node scripts/setup-mediapipe.mjs"
   },

@@ -22,6 +22,7 @@ import {
   RECALL_EVERY,
   SNAP_RADIUS,
   type KanjiEntry,
+  type KanjiLevel,
   type KanjiPart,
 } from './types';
 
@@ -40,6 +41,7 @@ type Phase = 'present' | 'sequence' | 'assemble' | 'celebrate' | 'recall';
 
 interface PartState {
   def: KanjiPart;
+  decoy: boolean; // Lv4 のダミーパーツ（どのゾーンにもスナップしない、SPEC §12.5）
   state: 'tray' | 'dragging' | 'returning' | 'flying' | 'placed';
   x: number;
   y: number;
@@ -50,21 +52,26 @@ interface PartState {
   fromY: number;
 }
 
+// pick-kanji: 読みを聞いて漢字を選ぶ（Lv1-3）。pick-reading: 漢字を見て読みを選ぶ（Lv4+, SPEC §12.5）
+type RecallKind = 'pick-kanji' | 'pick-reading';
+
 interface RecallState {
   target: KanjiEntry;
   choices: KanjiEntry[];
+  kind: RecallKind;
   missed: boolean;
 }
 
 interface QState {
   entry: KanjiEntry;
-  level: 1 | 2 | 3;
+  level: KanjiLevel;
   isFirst: boolean;
   phase: Phase;
   phaseStart: number;
   parts: PartState[];
   seqIndex: number;
   misplacements: number;
+  decoyTouches: number;
   hintUsed: boolean;
   assist: boolean;
   assistIndex: number;
@@ -147,9 +154,25 @@ export function KanjiGame({
     void source.start();
 
     function trayPositions(count: number): [number, number][] {
-      const spacing = 170;
+      const spacing = count >= 6 ? 150 : 170; // Lv4 は最大6枚（正解4+ダミー2）
       const startX = LOGICAL_W / 2 - ((count - 1) * spacing) / 2;
       return Array.from({ length: count }, (_, i) => [startX + i * spacing, TRAY_Y]);
+    }
+
+    // Lv4 用のダミーパーツ（正解と同じ glyph は除外、SPEC §12.5）
+    function pickDecoyParts(entry: KanjiEntry, n: number): KanjiPart[] {
+      const correct = new Set(entry.parts.map((p) => p.glyph));
+      const seen = new Set<string>();
+      const candidates: KanjiPart[] = [];
+      for (const e of KANJI_ENTRIES) {
+        if (e.id === entry.id) continue;
+        for (const p of e.parts) {
+          if (correct.has(p.glyph) || seen.has(p.glyph)) continue;
+          seen.add(p.glyph);
+          candidates.push(p);
+        }
+      }
+      return candidates.sort(() => Math.random() - 0.5).slice(0, n);
     }
 
     function loadQuestion(now: number): boolean {
@@ -168,16 +191,23 @@ export function KanjiGame({
       reviewStreak = picked.isReview ? reviewStreak + 1 : 0;
 
       const prog = progressMap[picked.entry.id] ?? defaultProgress();
-      const shuffled = [...picked.entry.parts].sort(() => Math.random() - 0.5);
-      const pos = trayPositions(shuffled.length);
+      const isLv4 = prog.level >= 4;
+      // Lv4: 正解パーツ + ダミー2枚をシャッフルして並べる（SPEC §12.5）
+      const realParts = picked.entry.parts.map((def) => ({ def, decoy: false }));
+      const decoyParts = isLv4
+        ? pickDecoyParts(picked.entry, 2).map((def) => ({ def, decoy: true }))
+        : [];
+      const tiles = [...realParts, ...decoyParts].sort(() => Math.random() - 0.5);
+      const pos = trayPositions(tiles.length);
       q = {
         entry: picked.entry,
         level: prog.level,
         isFirst: prog.completions === 0,
         phase: 'present',
         phaseStart: now,
-        parts: shuffled.map((def, i) => ({
-          def,
+        parts: tiles.map((t, i) => ({
+          def: t.def,
+          decoy: t.decoy,
           state: 'tray' as const,
           x: pos[i][0],
           y: pos[i][1],
@@ -189,6 +219,7 @@ export function KanjiGame({
         })),
         seqIndex: -1,
         misplacements: 0,
+        decoyTouches: 0,
         hintUsed: false,
         assist: false,
         assistIndex: 0,
@@ -198,7 +229,16 @@ export function KanjiGame({
         recorder: new ReplayRecorder(),
         startedAt: now,
       };
-      audioGuide.speakText(`これは「${picked.entry.reading}」。${picked.entry.storyText}`);
+      if (isLv4) {
+        // 完成形は見せず、読みだけで記憶から組む（ダミー混じり）
+        audioGuide.speak('kanji.lv4.intro');
+        const reading = picked.entry.reading;
+        window.setTimeout(() => {
+          if (!disposed && q && q.entry.reading === reading) audioGuide.speakText(`「${reading}」`);
+        }, 2000);
+      } else {
+        audioGuide.speakText(`これは「${picked.entry.reading}」。${picked.entry.storyText}`);
+      }
       return true;
     }
 
@@ -238,6 +278,7 @@ export function KanjiGame({
           misplacements: q.misplacements,
           hintUsed: q.hintUsed,
           firstComplete: q.isFirst,
+          decoyTouches: q.decoyTouches,
         },
         replay: q.recorder.finish(),
       });
@@ -253,10 +294,17 @@ export function KanjiGame({
       if (q.phase === 'celebrate' && recallDue && previousEntry) {
         const target = previousEntry;
         const choices = [target, ...pickDistractors(target)].sort(() => Math.random() - 0.5);
+        // Lv4+ は逆引き（漢字→読み）。それ以外は従来の読み→漢字（SPEC §12.5 / D2b）
+        const kind: RecallKind =
+          (progressMap[target.id]?.level ?? 1) >= 4 ? 'pick-reading' : 'pick-kanji';
         q.phase = 'recall';
         q.phaseStart = now;
-        q.recall = { target, choices, missed: false };
-        audioGuide.speak('kanji.recall.q', { reading: target.reading });
+        q.recall = { target, choices, kind, missed: false };
+        if (kind === 'pick-reading') {
+          audioGuide.speak('kanji.recall.read.q');
+        } else {
+          audioGuide.speak('kanji.recall.q', { reading: target.reading });
+        }
         return;
       }
       previousEntry = q.entry;
@@ -362,26 +410,32 @@ export function KanjiGame({
               p.y = pointer.y;
               if (upEdge) {
                 const [zx, zy] = zoneCenter(p.def);
-                if (Math.hypot(p.x - zx, p.y - zy) < SNAP_RADIUS) {
+                // ダミーパーツはどのゾーンにもスナップしない（SPEC §12.5）
+                if (!p.decoy && Math.hypot(p.x - zx, p.y - zy) < SNAP_RADIUS) {
                   p.state = 'placed';
                   p.x = zx;
                   p.y = zy;
                   audioGuide.chime();
                 } else {
-                  // 違うゾーンの近くか（誤配置カウント。音・エフェクトは出さない）
-                  const nearWrong = q.parts.some((o) => {
-                    if (o === p || o.state === 'placed') return false;
-                    const [ox, oy] = zoneCenter(o.def);
-                    return Math.hypot(p.x - ox, p.y - oy) < SNAP_RADIUS;
-                  });
-                  if (nearWrong) {
-                    q.misplacements += 1;
-                    if (q.misplacements >= HINT_AFTER_MISSES && !q.hintUsed) {
-                      q.hintUsed = true;
-                      audioGuide.speak('kanji.hint', {
-                        partName: p.def.spokenName,
-                        positionName: positionName(p.def),
-                      });
+                  if (p.decoy) {
+                    // ダミーは失敗ではない: そっと戻るだけ（音・エフェクトなし）
+                    q.decoyTouches += 1;
+                  } else {
+                    // 違うゾーンの近くか（誤配置カウント。音・エフェクトは出さない）
+                    const nearWrong = q.parts.some((o) => {
+                      if (o === p || o.state === 'placed' || o.decoy) return false;
+                      const [ox, oy] = zoneCenter(o.def);
+                      return Math.hypot(p.x - ox, p.y - oy) < SNAP_RADIUS;
+                    });
+                    if (nearWrong) {
+                      q.misplacements += 1;
+                      if (q.misplacements >= HINT_AFTER_MISSES && !q.hintUsed) {
+                        q.hintUsed = true;
+                        audioGuide.speak('kanji.hint', {
+                          partName: p.def.spokenName,
+                          positionName: positionName(p.def),
+                        });
+                      }
                     }
                   }
                   p.state = 'returning';
@@ -414,7 +468,11 @@ export function KanjiGame({
               }
             }
           }
-          if (q.phase === 'assemble' && q.parts.every((p) => p.state === 'placed')) {
+          // 完成判定はダミーを除く（ダミーはトレイに残ったままでよい、SPEC §12.5）
+          if (
+            q.phase === 'assemble' &&
+            q.parts.filter((p) => !p.decoy).every((p) => p.state === 'placed')
+          ) {
             completeAssembly(now);
           }
           break;
@@ -541,32 +599,47 @@ export function KanjiGame({
         ctx!.font = `${FRAME * 0.82}px ${KANJI_FONT}`;
         ctx!.textAlign = 'center';
         ctx!.textBaseline = 'middle';
-        ctx!.fillText(q.entry.char, FRAME_X + FRAME / 2, FRAME_Y + FRAME / 2 + 10);
+        // Lv4 は完成形を見せない（読みだけで記憶から組む、SPEC §12.5）
+        const shown = q.level >= 4 ? '？' : q.entry.char;
+        ctx!.fillText(shown, FRAME_X + FRAME / 2, FRAME_Y + FRAME / 2 + 10);
         ctx!.restore();
       } else if (q.phase === 'recall' && q.recall) {
-        // 3択カード
         ctx!.fillStyle = '#131e26';
         ctx!.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+        const reverse = q.recall.kind === 'pick-reading';
+        // 逆引き: お題の漢字を上部に大きく表示
+        if (reverse) {
+          ctx!.save();
+          ctx!.fillStyle = 'rgba(247, 243, 232, 0.96)';
+          ctx!.textAlign = 'center';
+          ctx!.textBaseline = 'middle';
+          ctx!.font = `200px ${KANJI_FONT}`;
+          ctx!.fillText(q.recall.target.char, LOGICAL_W / 2, 170);
+          ctx!.restore();
+        }
+        // 3択カード（pick-kanji=漢字 / pick-reading=ひらがな読み）
         const cards = recallCardRects(q.recall.choices.length);
         for (let i = 0; i < cards.length; i++) {
           const [cx, cy, size] = cards[i];
-          const isAnswer = q.recall.choices[i].id === q.recall.target.id;
+          const choice = q.recall.choices[i];
+          const isAnswer = choice.id === q.recall.target.id;
           ctx!.save();
           ctx!.fillStyle = 'rgba(247, 243, 232, 0.94)';
           ctx!.beginPath();
           ctx!.roundRect(cx - size / 2, cy - size / 2, size, size, 20);
           ctx!.fill();
           if (q.recall.missed && isAnswer) {
-            // 正解をやさしく示す
             ctx!.strokeStyle = `rgba(255, 214, 110, ${0.6 + 0.4 * Math.sin(now / 200)})`;
             ctx!.lineWidth = 8;
             ctx!.stroke();
           }
           ctx!.fillStyle = ink;
-          ctx!.font = `${size * 0.62}px ${KANJI_FONT}`;
           ctx!.textAlign = 'center';
           ctx!.textBaseline = 'middle';
-          ctx!.fillText(q.recall.choices[i].char, cx, cy + 6);
+          const label = reverse ? choice.reading : choice.char;
+          const fs = reverse ? Math.min(size * 0.5, (size * 0.82) / label.length) : size * 0.62;
+          ctx!.font = `${fs}px ${KANJI_FONT}`;
+          ctx!.fillText(label, cx, cy + 6);
           ctx!.restore();
         }
       } else {

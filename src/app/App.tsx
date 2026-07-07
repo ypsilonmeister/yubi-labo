@@ -13,6 +13,7 @@ import { CalibrationScreen } from './screens/CalibrationScreen';
 import { MazeGame } from '../games/maze/MazeGame';
 import { KanjiGame } from '../games/kanji/KanjiGame';
 import { MojiGame } from '../games/moji/MojiGame';
+import { LabGame } from '../games/lab/LabGame';
 import { audioGuide } from '../core/audio/AudioGuide';
 import { SessionTimer } from '../core/engine/SessionTimer';
 import { selectLaunchHighlights, type Highlight } from '../core/engine/highlights';
@@ -33,6 +34,7 @@ type Screen =
   | 'maze'
   | 'kanji'
   | 'moji'
+  | 'lab'
   | 'farm'
   | 'zukan'
   | 'calibrate'
@@ -51,6 +53,7 @@ export function App() {
   const [endRequested, setEndRequested] = useState(false);
   const [launchHighlights, setLaunchHighlights] = useState<Highlight[]>([]);
   const [inputMode, setInputMode] = useState<InputMode>('pointer');
+  const [labEnabled, setLabEnabled] = useState(true);
   const [handStatus, setHandStatus] = useState<'tracking' | 'lost'>('tracking');
   const [overlay, setOverlay] = useState<Overlay>('none');
 
@@ -68,6 +71,7 @@ export function App() {
   const begin = useCallback(async () => {
     await audioGuide.unlock();
     audioGuide.setVolume(await getSetting('volume', 1));
+    setLabEnabled(await getSetting('lab.enabled', true));
 
     // セッション長: 保護者設定（デフォルト5分）。開発用に ?min= で上書き可。
     const paramMin = new URLSearchParams(location.search).get('min');
@@ -120,6 +124,11 @@ export function App() {
     timerRef.current?.start();
   }, []);
 
+  const openLab = useCallback(() => {
+    setScreen('lab');
+    timerRef.current?.start();
+  }, []);
+
   const openFarm = useCallback(() => setScreen('farm'), []);
   const openZukan = useCallback(() => setScreen('zukan'), []);
   const openParent = useCallback(() => setScreen('parent'), []);
@@ -144,7 +153,11 @@ export function App() {
   // §4.2.5 原則7: ロストは機器の問題として提示し、ゲームを自動ポーズ
   const handleTrackStatus = useCallback((s: 'tracking' | 'lost') => {
     setHandStatus(s);
-    const inGame = screenRef.current === 'maze' || screenRef.current === 'kanji' || screenRef.current === 'moji';
+    const inGame =
+      screenRef.current === 'maze' ||
+      screenRef.current === 'kanji' ||
+      screenRef.current === 'moji' ||
+      screenRef.current === 'lab';
     if (s === 'lost') {
       if (inGame && overlayRef.current === 'none') {
         timerRef.current?.pause();
@@ -225,7 +238,7 @@ export function App() {
 
   // §4.2.6 疲労対策: ハンド入力で連続90秒プレイ → 10秒の「ひとやすみ」
   useEffect(() => {
-    const inGame = screen === 'maze' || screen === 'kanji' || screen === 'moji';
+    const inGame = screen === 'maze' || screen === 'kanji' || screen === 'moji' || screen === 'lab';
     if (inputMode !== 'hand' || !inGame) {
       handUseSecRef.current = 0;
       return;
@@ -248,7 +261,8 @@ export function App() {
     return () => window.clearInterval(iv);
   }, [screen, inputMode, overlay]);
 
-  const inGame = screen === 'maze' || screen === 'kanji' || screen === 'moji';
+  const inGame =
+    screen === 'maze' || screen === 'kanji' || screen === 'moji' || screen === 'lab';
 
   return (
     <Stage>
@@ -262,6 +276,8 @@ export function App() {
           onOpenMaze={openMaze}
           onOpenKanji={openKanji}
           onOpenMoji={openMoji}
+          onOpenLab={openLab}
+          labEnabled={labEnabled}
           onOpenFarm={openFarm}
           onOpenZukan={openZukan}
           onOpenParent={openParent}
@@ -285,6 +301,8 @@ export function App() {
             onOpenMaze={openMaze}
             onOpenKanji={openKanji}
             onOpenMoji={openMoji}
+            onOpenLab={openLab}
+            labEnabled={labEnabled}
             onOpenFarm={openFarm}
             onOpenZukan={openZukan}
             onOpenParent={openParent}
@@ -301,6 +319,9 @@ export function App() {
       )}
       {screen === 'moji' && (
         <MojiGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
+      )}
+      {screen === 'lab' && (
+        <LabGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
       )}
       {screen === 'end' && <EndScreen session={sessionRef.current} />}
 
