@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anonymize, emptyAppData, eventsCsv, mergeData, migrateV1, previewImport, sessionsCsv, toJstIso, trialsCsv, validateAppData } from '../core/storage/dataio';
+import { anonymize, emptyAppData, withDefaults, eventsCsv, mergeData, migrateV1, previewImport, sessionsCsv, toJstIso, trialsCsv, validateAppData } from '../core/storage/dataio';
 import { buildQuestion } from '../core/engine/questions';
 import { DEFAULT_LEARNING, DEFAULT_SETTINGS } from '../core/settings';
 import type { AppData } from '../core/types';
@@ -115,5 +115,21 @@ describe('受け入れテスト18: 時刻', () => {
   it('オフセット付きISO8601で保存する', () => {
     expect(isoWithOffset(new Date())).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$/);
     expect(toJstIso('2026-10-16T22:30:00.000Z')).toBe('2026-10-17T07:30:00+09:00');
+  });
+});
+
+describe('v2.2 の設定（古いデータの読み込み）', () => {
+  it('v2.1 の設定には新しい項目がないので、初期値で補う', () => {
+    const settings = Object.fromEntries(Object.entries(DEFAULT_SETTINGS).filter(([k]) => k !== 'directManipulation'));
+    const p = withDefaults({ playerLabel: 'x', settings, learning: { choiceCount: 3 } } as never);
+    expect(p.settings.directManipulation).toBe(true);
+    expect(p.learning).toMatchObject({ scoreEnabled: true, roundLength: 10, freeChoice: false, choiceCount: 3 });
+  });
+
+  it('ラウンドの roundId は検証・匿名化を通っても残る', () => {
+    const d = sample();
+    d.sessions[0].trials[0].roundId = 'r-1';
+    expect(validateAppData(d)).toEqual([]);
+    expect(anonymize(d).sessions[0].trials[0].roundId).toBe('r-1');
   });
 });

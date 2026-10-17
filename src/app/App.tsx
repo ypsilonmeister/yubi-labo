@@ -6,12 +6,15 @@ import { SessionEngine } from '../core/engine/SessionEngine';
 import type { PickContext } from '../core/engine/questions';
 import type { AppData, LearningStage, ModeId, TaskCategory } from '../core/types';
 import { isoWithOffset, jstDateKey } from '../core/time';
-import { HomeScreen, ModeScreen, StartScreen } from './screens/HomeScreens';
+import { HomeScreen, ModeScreen, RankingScreen, StartScreen } from './screens/HomeScreens';
+import { ranking, totalPoints } from '../core/score';
+import { uid } from '../core/time';
 import { PlayScreen, type PlaySpec } from './screens/PlayScreen';
 import { CraftBookScreen } from './screens/CraftBookScreen';
 import { EndScreen } from './screens/EndScreen';
 import { ParentGate } from './ParentGate';
 import { ParentScreen } from './parent/ParentScreen';
+import { GameRegistry } from '../core/registry';
 
 type Screen =
   | { name: 'start' }
@@ -19,6 +22,7 @@ type Screen =
   | { name: 'mode'; mode: ModeId }
   | { name: 'play'; spec: PlaySpec; key: number }
   | { name: 'craft' }
+  | { name: 'ranking' }
   | { name: 'end' }
   | { name: 'parent'; back: Screen };
 
@@ -66,6 +70,17 @@ function Loaded({ store }: { store: Store }) {
   }, [engine, store]);
 
   const play = (spec: PlaySpec) => setScreen({ name: 'play', spec, key: ++playKey.current });
+  /** v2.2: ホームでモードをタップしたら、おまかせ進行ですぐ始める（点が有効ならラウンドで） */
+  const startMode = (mode: ModeId) => {
+    if (learning.freeChoice) return setScreen({ name: 'mode', mode });
+    play(newRoundSpec({ mode, task: GameRegistry.get(mode).supportedTasks[0], stage: 'construct', auto: true }));
+  };
+  const newRoundSpec = (spec: PlaySpec): PlaySpec => ({
+    ...spec,
+    question: undefined,
+    round: learningRef.current.scoreEnabled ? { id: uid('r-'), length: learningRef.current.roundLength } : undefined,
+  });
+  const points = learning.scoreEnabled ? totalPoints(data) : 0;
   const onCraft = (value: number, parts: number[], mode: ModeId) => {
     store.addCraft({ value, parts, firstMadeAt: isoWithOffset(), modeId: mode });
   };
@@ -85,8 +100,10 @@ function Loaded({ store }: { store: Store }) {
         <HomeScreen
           s={settings}
           learning={learning}
-          onMode={(mode) => setScreen({ name: 'mode', mode })}
+          score={learning.scoreEnabled ? { points } : null}
+          onMode={startMode}
           onCraft={() => setScreen({ name: 'craft' })}
+          onRanking={() => setScreen({ name: 'ranking' })}
           onEnd={() => {
             engine.endSession('child_chose_end');
             setScreen({ name: 'end' });
@@ -98,7 +115,7 @@ function Loaded({ store }: { store: Store }) {
           s={settings}
           mode={screen.mode}
           onBack={() => setScreen({ name: 'home' })}
-          onPlay={(task: TaskCategory, stage: LearningStage) => play({ mode: screen.mode, task, stage })}
+          onPlay={(task: TaskCategory, stage: LearningStage) => play(stage === 'explore' ? { mode: screen.mode, task, stage } : newRoundSpec({ mode: screen.mode, task, stage }))}
         />
       )}
       {screen.name === 'play' && (
@@ -109,11 +126,15 @@ function Loaded({ store }: { store: Store }) {
           settings={settings}
           learning={learning}
           pickContext={pickContext}
+          sessions={() => store.data.sessions}
+          totalPoints={() => totalPoints(store.data)}
+          onNewRound={(spec) => play(newRoundSpec(spec))}
           onCraft={onCraft}
-          onExit={() => setScreen({ name: 'mode', mode: screen.spec.mode })}
+          onExit={() => setScreen(learning.freeChoice ? { name: 'mode', mode: screen.spec.mode } : { name: 'home' })}
           onTransfer={play}
         />
       )}
+      {screen.name === 'ranking' && <RankingScreen list={ranking(data.sessions, learning.roundLength, 10)} points={points} onBack={() => setScreen({ name: 'home' })} />}
       {screen.name === 'craft' && <CraftBookScreen entries={data.craftBook ?? []} s={settings} onBack={() => setScreen({ name: 'home' })} />}
       {screen.name === 'end' && (
         <EndScreen

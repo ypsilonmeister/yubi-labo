@@ -1,7 +1,9 @@
 // 手札（選択肢）。標準はタップで選ぶ→置き先をタップ（§8.1）。
 // inputMethod が drag のときは、置き先へドラッグして離しても置ける（タップも引き続き使える）。
+// v2.2: snap があるとき（ダイレクト操作）は、1タップで置き先へ吸い込まれて置かれる（onDrop が呼ばれる）。
 
 import { useRef, useState, type ReactNode } from 'react';
+import { findDrop, flyTo, type Snap } from './snap';
 
 export interface ChoiceItem {
   key: string;
@@ -21,10 +23,22 @@ interface Props {
   /** L3 実演中に示す選択肢 */
   demoKey?: string | null;
   disabled?: boolean;
+  /** v2.2: ワンタップで置き先へ（ダイレクト操作） */
+  snap?: Snap;
 }
 
-export function ChoiceTray({ items, selected, onTap, drag, onDrop, demoKey, disabled }: Props) {
+export function ChoiceTray({ items, selected, onTap, drag, onDrop, demoKey, disabled, snap }: Props) {
   const [ghost, setGhost] = useState<{ item: ChoiceItem; x: number; y: number } | null>(null);
+  const [flying, setFlying] = useState<string | null>(null);
+
+  const tapSnap = async (el: HTMLElement, it: ChoiceItem) => {
+    if (!snap || flying) return;
+    if (selected !== it.key) onTap(it); // 選んだことを記録（item_selected）
+    setFlying(it.key);
+    const ok = await snap.run(() => flyTo([el], findDrop(el, snap.to), snap.ms));
+    setFlying(null);
+    if (ok) onDrop?.(it, snap.to);
+  };
   const start = useRef<{ x: number; y: number; id: number; item: ChoiceItem; moved: boolean } | null>(null);
 
   const down = (e: React.PointerEvent, item: ChoiceItem) => {
@@ -54,13 +68,14 @@ export function ChoiceTray({ items, selected, onTap, drag, onDrop, demoKey, disa
         <button
           key={it.key}
           type="button"
-          className={`choice${selected === it.key ? ' is-selected' : ''}${demoKey === it.key ? ' is-demo' : ''}`}
+          className={`choice${selected === it.key ? ' is-selected' : ''}${demoKey === it.key ? ' is-demo' : ''}${flying === it.key ? ' is-flying' : ''}`}
           aria-pressed={selected === it.key}
           aria-label={it.label}
           disabled={disabled || it.disabled}
-          onClick={() => {
+          onClick={(e) => {
             if (start.current?.moved) return;
-            onTap(it);
+            if (snap) void tapSnap(e.currentTarget, it);
+            else onTap(it);
           }}
           onPointerDown={(e) => down(e, it)}
           onPointerMove={move}

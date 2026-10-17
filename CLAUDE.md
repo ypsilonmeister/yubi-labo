@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-The repository (still named `yubi-labo`, deployed at `/yubi-labo/`) now hosts **さんすうクラフト**, an implementation of the math-craft spec v2.1 (`docs/SPEC.md`). The previous app (ゆびラボ: maze/kanji/moji/hand tracking) was fully cleared by the child and removed. All four modes (A 偶奇パズル, B カラーロッド, C 10フレーム, D 両替商), the craft book, and the parent dashboard are implemented. Implementation-time judgment calls are recorded in `docs/SPEC.md` §17.
+The repository (still named `yubi-labo`, deployed at `/yubi-labo/`) now hosts **さんすうクラフト**, an implementation of the math-craft spec v2.1 (`docs/SPEC.md`). The previous app (ゆびラボ: maze/kanji/moji/hand tracking) was fully cleared by the child and removed. All four modes (A 偶奇パズル, B カラーロッド, C 10フレーム, D 両替商), the craft book, and the parent dashboard are implemented. v2.2 (SPEC §18) added direct manipulation, auto progression with adaptive skip (`src/core/engine/progression.ts`), and scores/ranks/rounds. Implementation-time judgment calls are recorded in `docs/SPEC.md` §17.
 
 Commands:
 
 - `npm run dev` — Vite dev server.
-- `npm test` — vitest: math rules, all carry/borrow combinations rendered by modes C/D (acceptance test 12), question validation, metrics, engine, import/export/migration.
+- `npm test` — vitest: math rules, all carry/borrow combinations rendered by modes C/D (acceptance test 12), question validation, metrics, engine, import/export/migration, scores/ranks/rounds and auto progression (`score.test.ts`).
 - `npm run build` — `tsc --noEmit` + Vite production build. Run both `npm test` and `npm run build` before pushing.
 - **Deploy**: pushing to `main` publishes to GitHub Pages via `.github/workflows/deploy.yml` (runs `npm test`, then builds with `GITHUB_PAGES` set so Vite `base` is `/yubi-labo/`). Treat `main` as live for the child.
 
@@ -24,9 +24,10 @@ The child's name and diagnostic details (test names/scores) must never be writte
 - **No forced equations.** Formulas/numbers appear only via the child's 「かずで みる」 button, and answers only after the trial ends. School notation (さくらんぼ) only on request.
 - **No timers or countdowns.** Reaction times are measured silently by the engine only, and are an auxiliary metric — never interpreted as fatigue/counting.
 - **Neutral mistakes.** No red ×, buzzer, shake, 「ざんねん」. A wrong choice is shown as the shape not fitting (overflow / gap / spill) and can be undone or replaced.
-- **Capped fun.** `effectLevel` (default `calm`) is never exceeded and never escalates; no streaks, combos, scores, stars, rankings, quotas, or progress gauges on child screens. No 「がんばれ」「あと少し」「早く」.
+- **Capped fun.** `effectLevel` (default `calm`) is never exceeded and never escalates; no streaks or combo multipliers. No 「がんばれ」「あと少し」「早く」.
+- **Scores / ranks / rounds (v2.2, parent decision — SPEC §18.3).** Points, rank (a growing plant), 10-question rounds and a ranking of the child's *own* past rounds are allowed on child screens (`scoreEnabled`, default on). Points never decrease (no deductions for mistakes/skips/exits) and never depend on speed; scores are derived from trial results (`src/core/score.ts`), not stored.
 - **Sound off by default**; every task must be completable silently.
-- **Tap-first.** Every task completes with "tap item → tap destination" (≥48px targets). Drag is optional (`inputMethod: 'drag'`).
+- **Tap-first.** Every task completes with taps (≥48px targets). With `directManipulation` (default on, SPEC §18.1) one tap on a tray item snaps it into the destination, and C/D placement decisions are made by tapping where to break off a group (`SplitPicker`); off = "tap item → tap destination". Drag is optional (`inputMethod: 'drag'`).
 - **Never auto-advance.** After each trial: もういちど / つぎへ / べつのせかいでもみる / おしまい. Skip/undo/pause/exit always available and never treated as failure.
 - **Keep references visible.** Target frames and comparison objects stay on screen; decomposition is shown one simple state at a time with previous states as thumbnails. No show-then-hide memory tasks.
 - **Yawning is not a negative signal**; never add fields/labels that interpret behaviour (e.g. fatigue). Parent observations are free text.

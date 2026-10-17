@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   carryFirstOperand: 'larger',
   borrowStrategy: 'subtract_from_ten',
   fiveToken: false,
+  directManipulation: true,
 };
 
 export const DEFAULT_LEARNING: LearningSettings = {
@@ -24,6 +25,9 @@ export const DEFAULT_LEARNING: LearningSettings = {
   idleThresholdMs: 10000,
   selfReportEnabled: false, // §8.5: 初期OFF
   craftBookEnabled: true,
+  scoreEnabled: true,
+  roundLength: 10,
+  freeChoice: false,
 };
 
 export function osPrefersReducedMotion(): boolean {

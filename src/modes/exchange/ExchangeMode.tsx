@@ -1,13 +1,17 @@
 // Mode D：ギルドの両替商（§9.4）
 // 通貨は 1・10（100 は表示のみ）、5トークンは設定で ON/OFF。交換のルールは画面に絵で示す。
-// 引き算は加数法（お釣り）: ねだんにあと何を足すと 10 か → はらった 1 と合わせてお釣り。
+// 引き算は加数法（お釣り）: もっている お金（10 と 1）のうち 10 だけで はらう。ねだんにあと何を足すと 10 か（おつり）
+// → おつりと、もったままの 1 を合わせたのが のこる お金。1 は はらわない（v2.2: 「4えんの ものに 12えん はらう」ように見えないように）。
+// v2.2: 位ごとに色を分けた「へや」（10のへや＝青、1のへや＝黄、りょうがえマシン＝緑）と、1のへやの10の席で、
+// 「10枚そろうと1枚の10になる」ことをパッと見て分かるようにした。ダイレクト操作では、もらうコインの「ちぎる位置」をタップする。
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createReactPlugin, useBridge, type ModeBridge } from '../kit/bridge';
 import { useTrialCore, usePicker, type TrialCore } from '../kit/useTrialCore';
 import { ChoiceTray, type ChoiceItem } from '../kit/ChoiceTray';
+import { SplitPicker } from '../kit/SplitPicker';
 import { HistoryStrip, ModeLayout, StepControls, successClass } from '../kit/ui';
-import { numberColor, OUTLINE, SLOT_STROKE, SLOT_STROKE_STRONG, inkOn } from '../../core/colors';
+import { numberColor, OUTLINE, PLACE_BG, PLACE_STROKE, SLOT_STROKE, SLOT_STROKE_STRONG, inkOn } from '../../core/colors';
 import { choicesOf } from '../../core/engine/questions';
 import { makeDistractors, narrowToTwo, shuffle } from '../../core/math/choices';
 import { purseOf, purseValue, emptyPurse, type CoinValue, type Purse } from '../../core/math/coins';
@@ -27,7 +31,9 @@ import {
   borrowScenes,
   borrowScript,
   cardSeat,
+  carryDirectPlan,
   carryScenes,
+  onePos,
   exploreAddScenes,
   lerpWorld,
   trayWorld,
@@ -128,21 +134,6 @@ function purseChoices(values: number[], toPurse: (v: number) => Purse, s: S): Ch
   return values.map((v, i) => ({ key: `c${i}-${v}`, value: v, label: 'コイン', node: <PurseIcon p={toPurse(v)} s={s} /> }));
 }
 
-function Box({ rect, label, strong, children, drop, onTap }: { rect: Rect; label?: string; strong?: boolean; children?: ReactNode; drop?: string; onTap?: () => void }) {
-  return (
-    <g>
-      <rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} rx={18} fill="#fbf6ea" stroke={strong ? SLOT_STROKE_STRONG : SLOT_STROKE} strokeWidth={strong ? 6 : 3} />
-      {label && (
-        <text x={rect.x + 12} y={rect.y + 24} fontSize={18} fontWeight={700} fill="#7a6e5c">
-          {label}
-        </text>
-      )}
-      {children}
-      {drop && <rect data-drop={drop} x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill="transparent" onClick={onTap} style={{ cursor: 'pointer' }} />}
-    </g>
-  );
-}
-
 /** 交換のルールを絵で示す（§9.4） */
 function RuleCard({ s }: { s: S }) {
   const row = (from: CoinValue, n: number, to: CoinValue) => (
@@ -174,25 +165,233 @@ function DField({ world, s, children, glow, thumb }: { world: DWorld; s: S; chil
   );
 }
 
+// ---------- 位ごとの「へや」（v2.2） ----------
+
+type Zone = 'tens' | 'ones' | 'machine' | 'plain';
+
+function MiniCoin({ v, x, y, r, s }: { v: CoinValue; x: number; y: number; r: number; s: S }) {
+  return <CoinShape c={{ value: v, x, y, r, opacity: 1 }} s={s} />;
+}
+
+/** 色つきのへや。見出しにコインの絵を添えて、どの位のへやかを形でも示す */
+function ZoneBox(props: { rect: Rect; zone: Zone; title: string; icon?: CoinValue; s: S; strong?: boolean; dashed?: boolean; drop?: string; onTap?: () => void; children?: ReactNode }) {
+  const { rect, zone } = props;
+  const fill = zone === 'plain' ? '#fbf6ea' : PLACE_BG[zone];
+  const stroke = props.strong ? SLOT_STROKE_STRONG : zone === 'plain' ? SLOT_STROKE : PLACE_STROKE[zone];
+  return (
+    <g>
+      <rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} rx={18} fill={fill} stroke={stroke} strokeWidth={props.strong ? 6 : 3.5} strokeDasharray={props.dashed ? '12 8' : undefined} />
+      {props.icon && <MiniCoin v={props.icon} x={rect.x + 18} y={rect.y + 17} r={10} s={props.s} />}
+      <text x={rect.x + (props.icon ? 34 : 12)} y={rect.y + 23} fontSize={17} fontWeight={800} fill={zone === 'plain' ? '#7a6e5c' : PLACE_STROKE[zone]}>
+        {props.title}
+      </text>
+      {props.children}
+      {props.drop && <rect data-drop={props.drop} x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill="transparent" onClick={props.onTap} style={{ cursor: 'pointer' }} />}
+    </g>
+  );
+}
+
+/** 1のへやの10の席（5トークンOFFのとき）。10枚そろうと両替されることを席の数で見せる */
+function OnesSeats({ strong }: { strong?: boolean }) {
+  return (
+    <g pointerEvents="none">
+      {Array.from({ length: 10 }, (_, i) => {
+        const p = onePos(i);
+        return <circle key={i} cx={p.x} cy={p.y} r={33} fill="#fffaf0" stroke={strong ? SLOT_STROKE_STRONG : PLACE_STROKE.ones} strokeWidth={strong ? 4 : 2.5} strokeDasharray="7 5" />;
+      })}
+    </g>
+  );
+}
+
+/** りょうがえマシンの中に、きまりを絵で描く（1が10枚 → 10が1枚） */
+function MachineRule({ s }: { s: S }) {
+  const x0 = SLOT.x + 22;
+  const y0 = SLOT.y + 70;
+  if (s.fiveToken)
+    return (
+      <g pointerEvents="none">
+        {Array.from({ length: 5 }, (_, i) => (
+          <MiniCoin key={i} v={1} x={x0 + i * 17} y={y0} r={8} s={s} />
+        ))}
+        <text x={x0 + 96} y={y0 + 6} fontSize={18} fill={PLACE_STROKE.machine}>
+          →
+        </text>
+        <MiniCoin v={5} x={x0 + 130} y={y0} r={13} s={s} />
+        <MiniCoin v={5} x={x0 + 10} y={y0 + 56} r={11} s={s} />
+        <MiniCoin v={5} x={x0 + 36} y={y0 + 56} r={11} s={s} />
+        <text x={x0 + 60} y={y0 + 62} fontSize={18} fill={PLACE_STROKE.machine}>
+          →
+        </text>
+        <MiniCoin v={10} x={x0 + 100} y={y0 + 56} r={15} s={s} />
+      </g>
+    );
+  return (
+    <g pointerEvents="none">
+      {Array.from({ length: 10 }, (_, i) => (
+        <MiniCoin key={i} v={1} x={x0 + 8 + Math.floor(i / 2) * 19} y={y0 + (i % 2) * 19} r={8.5} s={s} />
+      ))}
+      <path d={`M${SLOT.x + SLOT.w / 2} ${y0 + 36} v26`} stroke={PLACE_STROKE.machine} strokeWidth={4} markerEnd="url(#d-arrow)" />
+      <MiniCoin v={10} x={SLOT.x + SLOT.w / 2} y={y0 + 92} r={20} s={s} />
+    </g>
+  );
+}
+
+function ArrowDefs() {
+  return (
+    <defs>
+      <marker id="d-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 Z" fill={PLACE_STROKE.machine} />
+      </marker>
+    </defs>
+  );
+}
+
+/** 流れの矢印: 1のへや → マシン → 10のへや */
+function FlowArrows() {
+  const midY = TEN_TRAY.y + TEN_TRAY.h / 2;
+  return (
+    <g pointerEvents="none" fill="none" stroke={PLACE_STROKE.machine} strokeWidth={4} strokeDasharray="10 7" opacity={0.85}>
+      <path d={`M${ONES_TRAY.x + ONES_TRAY.w - 4} ${midY} H${SLOT.x + 4}`} markerEnd="url(#d-arrow)" />
+      <path d={`M${SLOT.x + SLOT.w / 2} ${SLOT.y + 2} C${SLOT.x + SLOT.w / 2} 6, ${TEN_TRAY.x + TEN_TRAY.w / 2} 6, ${TEN_TRAY.x + TEN_TRAY.w / 2} ${TEN_TRAY.y + 2}`} markerEnd="url(#d-arrow)" />
+    </g>
+  );
+}
+
 // ---------- 繰り上がり: もらうとトレイはどうなる？ ----------
 
-function CarryBackdrop({ strongBox, box, s, onBox }: { strongBox?: boolean; box: Purse | null; s: S; onBox?: () => void }) {
+function CarryBackdrop({ strongBox, box, s, onBox, showBox = true, strongOnes, onesDrop }: { strongBox?: boolean; box: Purse | null; s: S; onBox?: () => void; showBox?: boolean; strongOnes?: boolean; onesDrop?: boolean }) {
   return (
     <>
-      <Box rect={TEN_TRAY} label="10の トレイ" />
-      <Box rect={ONES_TRAY} label="1の トレイ" />
-      <Box rect={SLOT} label="りょうがえ" />
-      <Box rect={INCOMING} label="もらう" />
-      <Box rect={ANSWER_BOX} label="こうなる？" strong={strongBox} drop={onBox ? 'box' : undefined} onTap={onBox}>
-        {box ? (
-          <PurseInRect p={box} rect={{ ...ANSWER_BOX, y: ANSWER_BOX.y + 20, h: ANSWER_BOX.h - 20 }} s={s} />
-        ) : (
-          <text x={ANSWER_BOX.x + ANSWER_BOX.w / 2} y={ANSWER_BOX.y + 105} textAnchor="middle" fontSize={50} fill={SLOT_STROKE} pointerEvents="none">
-            ?
-          </text>
-        )}
-      </Box>
+      <ArrowDefs />
+      <ZoneBox rect={TEN_TRAY} zone="tens" title="10の へや" icon={10} s={s} />
+      <ZoneBox rect={ONES_TRAY} zone="ones" title="1の へや" icon={1} s={s} strong={strongOnes} drop={onesDrop ? 'ones' : undefined}>
+        {!s.fiveToken && <OnesSeats strong={strongOnes} />}
+      </ZoneBox>
+      <ZoneBox rect={SLOT} zone="machine" title="りょうがえ" s={s}>
+        <MachineRule s={s} />
+      </ZoneBox>
+      <FlowArrows />
+      <ZoneBox rect={INCOMING} zone="plain" title="もらう" s={s} dashed />
+      {showBox && (
+        <ZoneBox rect={ANSWER_BOX} zone="plain" title="こうなる？" s={s} strong={strongBox} drop={onBox ? 'box' : undefined} onTap={onBox}>
+          {box ? (
+            <PurseInRect p={box} rect={{ ...ANSWER_BOX, y: ANSWER_BOX.y + 20, h: ANSWER_BOX.h - 20 }} s={s} />
+          ) : (
+            <text x={ANSWER_BOX.x + ANSWER_BOX.w / 2} y={ANSWER_BOX.y + 105} textAnchor="middle" fontSize={50} fill={SLOT_STROKE} pointerEvents="none">
+              ?
+            </text>
+          )}
+        </ZoneBox>
+      )}
     </>
+  );
+}
+
+/** ちぎる手札のコイン1枚 */
+function CoinToken({ v, s }: { v: CoinValue; s: S }) {
+  return (
+    <svg width={42} height={42} viewBox="-21 -21 42 42" aria-hidden>
+      <CoinShape c={{ value: v, x: 0, y: 0, r: 18, opacity: 1 }} s={s} />
+    </svg>
+  );
+}
+
+const hideIncoming = (w: DWorld): DWorld => ({ coins: w.coins.map((c) => (c.id.startsWith('b') ? { ...c, opacity: 0 } : c)) });
+
+/**
+ * v2.2 ダイレクト操作の繰り上がり（5トークンOFF）。
+ * もらうコインの「ちぎる位置」をタップ → 1のへやの空席へ入る。ぴったり10枚になると、マシンで10に両替されて10のへやへ。
+ * 違う枚数のときは、空席が残る／へやからはみ出す様子のまま止まり、もどす か ほかの位置を選びなおせる。
+ */
+function CarryDirect({ core }: { core: TrialCore }) {
+  const { q, settings: s } = core;
+  const [a, b] = q.operands;
+  const plan = useMemo(() => carryDirectPlan(a, b, s.carryFirstOperand), [a, b]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [world, setWorld] = useState<DWorld>(() => hideIncoming(plan.start));
+  const [history, setHistory] = useState<DWorld[]>([]);
+  const [mismatch, setMismatch] = useState<number | null>(null);
+  const [ok, setOk] = useState(false);
+  const choices = useMemo(
+    () => shuffle([plan.toFill, ...makeDistractors(plan.toFill, core.ctx.learning.choiceCount - 1, { min: 1, max: plan.second })]),
+    [plan, core.ctx.learning.choiceCount],
+  );
+  const allowed = core.hintLevel >= 2 ? narrowToTwo(plan.toFill, choices.filter((c) => c !== plan.toFill)) : null;
+
+  core.onUndo(() => {
+    if (core.anim.busy || ok || mismatch === null) return;
+    setWorld(hideIncoming(plan.start));
+    setMismatch(null);
+    core.ctx.emit({ type: 'undo' });
+  });
+  core.onHint((lvl) => {
+    if (lvl === 3) void core.runDemo();
+  });
+
+  const pick = async (k: number) => {
+    if (core.anim.busy || ok) return;
+    const correct = k === plan.toFill;
+    core.ctx.emit({ type: 'attempt', payload: { value: k } });
+    core.ctx.emit({ type: 'decision_made', payload: { value: k, correct } });
+    const from = hideIncoming(plan.start);
+    if (!correct) {
+      core.mistakes.current++;
+      setMismatch(k);
+      await core.anim.run('mismatch', () => core.anim.tween(700, (t) => setWorld(lerpWorld(from, plan.fill(k), t))));
+      return;
+    }
+    setMismatch(null);
+    const seq = [plan.fill(k), ...plan.after];
+    await core.anim.run(
+      'exchange',
+      async () => {
+        let prev = from;
+        for (const next of seq) {
+          const p0 = prev;
+          await core.anim.tween(750, (t) => setWorld(lerpWorld(p0, next, t)));
+          setHistory((h) => [...h, p0].slice(-4));
+          await core.anim.wait(180);
+          prev = next;
+        }
+      },
+      { keepDisabled: true },
+    );
+    setOk(true);
+    core.ctx.craft(a + b, [a, b]);
+    core.finish(true);
+  };
+
+  const demoWorld = core.demo === 'place' ? plan.fill(plan.toFill) : null;
+  return (
+    <ModeLayout
+      prompt={ok ? 'ぴったり 10まい → 10の コインに なったよ' : mismatch !== null ? 'もどすか、ほかの ところで ちぎって みよう' : 'どこで ちぎると、1の へやが ぴったり 10まいに なるかな'}
+      field={
+        <div style={{ position: 'relative', width: '100%' }}>
+          <DField world={world} s={s} glow={ok}>
+            <CarryBackdrop s={s} box={null} showBox={false} strongOnes={core.hintLevel >= 1} onesDrop />
+          </DField>
+          {demoWorld && (
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.45, pointerEvents: 'none' }}>
+              <DField world={demoWorld} s={s} />
+            </div>
+          )}
+        </div>
+      }
+      history={<HistoryStrip items={history.map((h, i) => ({ key: String(i), node: <DField world={h} s={s} thumb /> }))} />}
+      tray={
+        <SplitPicker
+          key={mismatch === null ? 'fresh' : 'again'}
+          n={plan.second}
+          label="もらう コイン"
+          token={() => <CoinToken v={1} s={s} />}
+          snap={core.snap('ones')}
+          onSelect={(k) => core.ctx.emit({ type: 'item_selected', payload: { split: k } })}
+          onPick={(k) => void pick(k)}
+          allowed={allowed}
+          demoK={core.demo === 'pick' ? plan.toFill : null}
+          disabled={ok}
+        />
+      }
+    />
   );
 }
 
@@ -260,13 +459,12 @@ function CarryTask({ core, retry }: { core: TrialCore; retry: boolean }) {
   };
   return (
     <ModeLayout
-      prompt="コインを もらうと、トレイは どうなるかな"
+      prompt="コインを もらうと、へやは どうなるかな"
       field={
         <DField world={world} s={s} glow={ok}>
           <CarryBackdrop strongBox={core.hintLevel >= 1} box={core.demo === 'place' ? toPurse(rest) : box !== null ? toPurse(box) : null} s={s} onBox={tapBox} />
         </DField>
       }
-      aside={<RuleCard s={s} />}
       history={<HistoryStrip items={history.map((h, i) => ({ key: String(i), node: <DField world={h} s={s} thumb /> }))} />}
       tray={
         <ChoiceTray
@@ -274,6 +472,7 @@ function CarryTask({ core, retry }: { core: TrialCore; retry: boolean }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          snap={core.snap('box')}
           onDrop={(it, id) => id === 'box' && void choose(it.value)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === rest)?.key : null}
           disabled={ok || (revealed && !retry)}
@@ -285,11 +484,12 @@ function CarryTask({ core, retry }: { core: TrialCore; retry: boolean }) {
 
 // ---------- 繰り下がり（お釣り・加数法） ----------
 
-function BorrowBackdrop({ b, s, emphasize, boxValue, onTarget }: { b: number; s: S; emphasize: 'card' | 'box' | null; boxValue: number | null; onTarget?: (t: 'card' | 'box') => void }) {
+function BorrowBackdrop({ b, s, emphasize, boxValue, onTarget, showBox = true }: { b: number; s: S; emphasize: 'card' | 'box' | null; boxValue: number | null; onTarget?: (t: 'card' | 'box') => void; showBox?: boolean }) {
   const price = numberColor(b, s.colorScheme);
   return (
     <>
-      <Box rect={CARD} label="ねだん" strong={emphasize === 'card'} drop={onTarget ? 'card' : undefined} onTap={() => onTarget?.('card')}>
+      <ArrowDefs />
+      <ZoneBox rect={CARD} zone="machine" title="ねだん カード" s={s} strong={emphasize === 'card'} drop={onTarget ? 'card' : undefined} onTap={() => onTarget?.('card')}>
         {Array.from({ length: 10 }, (_, i) => {
           const p = cardSeat(i);
           return i < b ? (
@@ -298,10 +498,11 @@ function BorrowBackdrop({ b, s, emphasize, boxValue, onTarget }: { b: number; s:
             <circle key={i} cx={p.x} cy={p.y} r={28} fill="#fff" stroke={emphasize === 'card' ? SLOT_STROKE_STRONG : SLOT_STROKE} strokeWidth={emphasize === 'card' ? 4 : 2.5} strokeDasharray="6 5" pointerEvents="none" />
           );
         })}
-      </Box>
-      <Box rect={PAID} label="はらった お金" />
-      <Box rect={CHANGE} label="おつり" />
-      <Box rect={CHANGE_BOX} label="わたす" strong={emphasize === 'box'} drop={onTarget ? 'box' : undefined} onTap={() => onTarget?.('box')}>
+      </ZoneBox>
+      <ZoneBox rect={PAID} zone="tens" title="もっている お金" s={s} />
+      <ZoneBox rect={CHANGE} zone="ones" title="のこる お金" icon={1} s={s} />
+      {showBox && (
+      <ZoneBox rect={CHANGE_BOX} zone="plain" title="わたす" s={s} strong={emphasize === 'box'} drop={onTarget ? 'box' : undefined} onTap={() => onTarget?.('box')}>
         {boxValue !== null ? (
           <PurseInRect p={purseOf(boxValue, s.fiveToken)} rect={{ ...CHANGE_BOX, y: CHANGE_BOX.y + 20, h: CHANGE_BOX.h - 20 }} s={s} />
         ) : (
@@ -309,7 +510,8 @@ function BorrowBackdrop({ b, s, emphasize, boxValue, onTarget }: { b: number; s:
             ?
           </text>
         )}
-      </Box>
+      </ZoneBox>
+      )}
     </>
   );
 }
@@ -336,13 +538,19 @@ function BorrowConstruct({ core }: { core: TrialCore }) {
   const values = core.hintLevel >= 2 && decide ? choices.filter((v) => narrowToTwo(decide.answer, choices.filter((c) => c !== decide.answer)).includes(v)) : choices;
   const toPurse = (v: number) => (decide?.id === 'D1' ? { ...emptyPurse(), 1: v } : purseOf(v, s.fiveToken));
   const items = purseChoices(values, toPurse, s);
+  // v2.2 ダイレクト操作: カードへ入れる枚数は「ちぎる位置」をタップ。のこる お金を選ぶ手順は省き、最後まで見せて終わる
+  const direct = core.direct;
+  const skipStep = (x: BorrowStep) => direct && x.kind === 'decide' && x.target === 'box';
+  const splitting = direct && decide?.target === 'card';
 
   const playFrom = async (from: number, base: DWorld) => {
     let w = base;
     let i = from;
+    const toEnd = script.steps.slice(from).every((x) => x.kind === 'scene' || skipStep(x));
     const ran = await core.anim.run('scenes', async () => {
       for (; i < script.steps.length; i++) {
         const st = script.steps[i];
+        if (skipStep(st)) continue;
         if (st.kind !== 'scene') break;
         setHistory((h) => [...h, w].slice(-4));
         const fromW = w;
@@ -350,10 +558,15 @@ function BorrowConstruct({ core }: { core: TrialCore }) {
         w = st.world;
         await core.anim.wait(150);
       }
-    });
+    }, { keepDisabled: toEnd && from > 0 });
     if (!ran) return;
     pre.current = w;
     setIdx(i);
+    if (i >= script.steps.length) {
+      setOk(true);
+      core.ctx.craft(script.change, [script.toTen, m - 10]);
+      core.finish(true);
+    }
   };
 
   // 最初の「10 で はらう」は自動で見せる
@@ -409,11 +622,23 @@ function BorrowConstruct({ core }: { core: TrialCore }) {
   const demoWorld = core.demo === 'place' && decide?.mismatch ? decide.mismatch(decide.answer) : null;
   return (
     <ModeLayout
-      prompt={decide ? (decide.id === 'D1' ? 'ねだんの カードの あいている ところに はいる コインは どれかな' : 'おつりは どれかな') : '10の コインで はらうよ'}
+      prompt={
+        decide
+          ? splitting
+            ? mismatch !== null
+              ? 'もどすか、ほかの ところで ちぎって みよう'
+              : 'おみせの おつりは どこまで？ ねだんの カードが ぴったり 10に なるまで'
+            : decide.id === 'D1'
+              ? 'おみせの おつり: ねだんの カードの あいている ところに はいる コインは どれかな'
+              : 'のこる お金は どれかな'
+          : ok
+            ? 'これが のこる お金！'
+            : '10の コインで はらうよ（1の コインは もった まま）'
+      }
       field={
         <div style={{ position: 'relative', width: '100%' }}>
           <DField world={world} s={s} glow={ok}>
-            <BorrowBackdrop b={b} s={s} emphasize={core.hintLevel >= 1 ? decide?.target ?? null : null} boxValue={core.demo === 'place' && decide?.target === 'box' ? decide.answer : boxValue} onTarget={onTarget} />
+            <BorrowBackdrop b={b} s={s} showBox={!direct} emphasize={core.hintLevel >= 1 ? decide?.target ?? null : null} boxValue={core.demo === 'place' && decide?.target === 'box' ? decide.answer : boxValue} onTarget={onTarget} />
           </DField>
           {demoWorld && (
             <div style={{ position: 'absolute', inset: 0, opacity: 0.45, pointerEvents: 'none' }}>
@@ -425,7 +650,20 @@ function BorrowConstruct({ core }: { core: TrialCore }) {
       aside={s.fiveToken ? <RuleCard s={s} /> : undefined}
       history={<HistoryStrip items={history.map((h, i) => ({ key: String(i), node: <DField world={h} s={s} thumb /> }))} />}
       tray={
-        decide ? (
+        splitting && decide ? (
+          <SplitPicker
+            key={mismatch === null ? 'fresh' : 'again'}
+            n={9}
+            label="1の コイン"
+            token={() => <CoinToken v={1} s={s} />}
+            snap={core.snap('card')}
+            onSelect={(k) => core.ctx.emit({ type: 'item_selected', payload: { split: k } })}
+            onPick={(k) => void decideWith(k)}
+            allowed={core.hintLevel >= 2 ? values : null}
+            demoK={core.demo === 'pick' ? decide.answer : null}
+            disabled={ok}
+          />
+        ) : decide ? (
           <ChoiceTray
             items={items}
             selected={pick.selected}
@@ -486,7 +724,7 @@ function BorrowPredict({ core }: { core: TrialCore }) {
   };
   return (
     <ModeLayout
-      prompt="おつりは どれかな"
+      prompt="かいものの あと、のこる お金は どれかな"
       field={
         <DField world={world} s={s} glow={doneAll && pred === answer}>
           <BorrowBackdrop
@@ -513,6 +751,7 @@ function BorrowPredict({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          snap={core.snap('box')}
           onDrop={(it, id) => id === 'box' && void choose(it.value)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === answer)?.key : null}
           disabled={pred !== null}
@@ -558,16 +797,11 @@ function ObserveTask({ core }: { core: TrialCore }) {
           {borrow ? (
             <BorrowBackdrop b={b} s={s} emphasize={null} boxValue={null} />
           ) : (
-            <>
-              <Box rect={TEN_TRAY} label="10の トレイ" />
-              <Box rect={ONES_TRAY} label="1の トレイ" />
-              <Box rect={SLOT} label="りょうがえ" />
-              <Box rect={INCOMING} label="もらう" />
-            </>
+            <CarryBackdrop s={s} box={null} showBox={false} />
           )}
         </DField>
       }
-      aside={<RuleCard s={s} />}
+      aside={borrow && s.fiveToken ? <RuleCard s={s} /> : undefined}
       history={<HistoryStrip items={scenes.slice(Math.max(0, idx - 4), idx).map((h, i) => ({ key: String(i), node: <DField world={h.world} s={s} thumb /> }))} />}
       tray={<StepControls index={idx} count={scenes.length} onNext={() => void next()} onPrev={prev} />}
     />
@@ -629,17 +863,22 @@ function ExploreTask({ core }: { core: TrialCore }) {
   };
   return (
     <ModeLayout
-      prompt="コインを えらんで トレイに おいて みよう"
+      prompt="コインを えらんで へやに おいて みよう"
       field={
         <DField world={world} s={s}>
-          <Box rect={TEN_TRAY} label="10の トレイ" />
-          <Box rect={ONES_TRAY} label="1の トレイ" drop="tray" onTap={tapTray} />
-          <Box rect={SLOT} label="りょうがえ" />
-          <Box rect={INCOMING} label="おく" />
+          <ArrowDefs />
+          <ZoneBox rect={TEN_TRAY} zone="tens" title="10の へや" icon={10} s={s} />
+          <ZoneBox rect={ONES_TRAY} zone="ones" title="1の へや" icon={1} s={s} drop="tray" onTap={tapTray}>
+            {!s.fiveToken && <OnesSeats />}
+          </ZoneBox>
+          <ZoneBox rect={SLOT} zone="machine" title="りょうがえ" s={s}>
+            <MachineRule s={s} />
+          </ZoneBox>
+          <FlowArrows />
+          <ZoneBox rect={INCOMING} zone="plain" title="おく" s={s} dashed />
           <rect data-drop="tray" x={TEN_TRAY.x} y={TEN_TRAY.y} width={ONES_TRAY.x + ONES_TRAY.w - TEN_TRAY.x} height={TEN_TRAY.h} fill="transparent" onClick={tapTray} style={{ cursor: 'pointer' }} />
         </DField>
       }
-      aside={<RuleCard s={s} />}
       history={<HistoryStrip items={history.map((h, i) => ({ key: String(i), node: <DField world={h} s={s} thumb /> }))} />}
       tray={
         <>
@@ -648,7 +887,7 @@ function ExploreTask({ core }: { core: TrialCore }) {
               さいしょから
             </button>
           </div>
-          <ChoiceTray items={items} selected={pick.selected} onTap={(it) => pick.toggle(it.key, it.value)} drag={s.inputMethod === 'drag'} onDrop={(it, id) => id === 'tray' && void add(it.value as CoinValue)} />
+          <ChoiceTray items={items} selected={pick.selected} onTap={(it) => pick.toggle(it.key, it.value)} drag={s.inputMethod === 'drag'} snap={core.snap('tray')} onDrop={(it, id) => id === 'tray' && void add(it.value as CoinValue)} />
         </>
       }
     />
@@ -660,6 +899,7 @@ function Task({ bridge }: { bridge: ModeBridge }) {
   const q = core.q;
   if (q.learningStage === 'explore') return <ExploreTask core={core} />;
   if (q.learningStage === 'observe') return <ObserveTask core={core} />;
+  if (q.taskType === 'carry_over' && q.learningStage !== 'predict' && core.direct && !core.settings.fiveToken) return <CarryDirect core={core} />;
   if (q.taskType === 'carry_over') return <CarryTask core={core} retry={q.learningStage !== 'predict'} />;
   if (q.learningStage === 'predict') return <BorrowPredict core={core} />;
   return <BorrowConstruct core={core} />;

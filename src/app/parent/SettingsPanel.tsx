@@ -18,6 +18,7 @@ const A11Y: Field<keyof AccessibilitySettings>[] = [
   { key: 'effectLevel', label: '成功演出の強さ', help: '正解が続いても強くなりません。', options: [['none', 'なし'], ['calm', 'おだやか（初期）'], ['normal', 'ふつう']] },
   { key: 'reducedMotion', label: '動きを減らす', help: 'OSの「視差効果を減らす」設定も反映します。動きの代わりに状態を1つずつ切り替えて見せます。', options: [[false, 'OFF'], [true, 'ON']] },
   { key: 'animationSpeed', label: '分解・合体の速さ', options: [['slow', 'ゆっくり'], ['normal', 'ふつう'], ['instant', 'すぐ（動かさない）']] },
+  { key: 'directManipulation', label: 'ダイレクト操作', help: 'ON（初期）: 手札を1タップすると置き先へ吸い込まれます。10フレーム・両替では、むれ・コインの「ちぎる位置」をタップして入れます（入れたあとの「？の箱」を選ぶ手順は省きます）。OFF: 選ぶ→置き先をタップ（v2.1 の操作）。', options: [[true, 'ON'], [false, 'OFF']] },
   { key: 'inputMethod', label: '操作', help: 'タップ（選ぶ→置き先をタップ）は常に使えます。「ドラッグも使う」にすると、置き先へ引っぱって置くこともできます。', options: [['tap', 'タップ'], ['drag', 'ドラッグも使う']] },
   { key: 'showEquationOnRequest', label: '「かずで みる」ボタン', help: '本人が押したときだけ数・式を表示します（答えは問題が終わってから）。', options: [[true, '表示する'], [false, '表示しない']] },
   { key: 'highlightEmptySlots', label: '空席の強調', help: '静的な輪郭と明るさの差で示します（点滅はしません）。', options: [[true, 'する'], [false, 'しない']] },
@@ -29,6 +30,9 @@ const A11Y: Field<keyof AccessibilitySettings>[] = [
 ];
 
 const LEARN: Field<keyof LearningSettings>[] = [
+  { key: 'scoreEnabled', label: 'てんすう・ランク・植物', help: '保護者の判断で追加（v2.2）。点は減らず、速さでは変わりません。連続正解の倍率やコンボはありません。ランキングは本人の過去の記録だけです。', options: [[true, '表示する'], [false, '表示しない']] },
+  { key: 'roundLength', label: '1ラウンドの問題数', options: [[5, '5'], [10, '10（初期）'], [15, '15']] },
+  { key: 'freeChoice', label: '課題を自分で選ぶ画面', help: 'OFF（初期）: モードをタップするとすぐ始まり、課題と段階はおまかせで進みます（ヒントなし・間違いなしで2回続けてできたら次へ）。ON: v2.1 の選択画面を出します。', options: [[false, 'OFF（おまかせ）'], [true, 'ON']] },
   { key: 'choiceCount', label: '選択肢の数', options: [[2, '2'], [3, '3（初期）'], [4, '4']] },
   { key: 'synthesisMax', label: '合成の範囲', options: [[5, '5まで（初期）'], [10, '10まで']] },
   { key: 'craftBookEnabled', label: 'クラフト図鑑（つくったもの）', help: '作ったものだけを残します。正答率・速さ・ヒント回数は出しません（§8.5・保護者が判断）。', options: [[true, '使う'], [false, '使わない']] },

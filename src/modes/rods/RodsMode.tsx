@@ -158,6 +158,7 @@ function IdentifyTask({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          snap={core.snap('slot')}
           onDrop={(it) => place(it)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === n)?.key : null}
           disabled={ok}
@@ -258,6 +259,7 @@ function ComposeTask({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          snap={core.snap('slot')}
           onDrop={(it) => void place(it)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === need)?.key : null}
           disabled={ok}
@@ -366,6 +368,7 @@ function PredictTask({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          snap={core.snap('slot')}
           onDrop={(it) => void place(it)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === answer)?.key : null}
           disabled={pred !== null}
@@ -480,7 +483,7 @@ function ExploreTask({ core }: { core: TrialCore }) {
               さいしょから
             </button>
           </div>
-          <ChoiceTray items={items} selected={pick.selected} onTap={(it) => pick.toggle(it.key, it.value)} drag={s.inputMethod === 'drag'} onDrop={(it) => add(it)} disabled={compared} />
+          <ChoiceTray items={items} selected={pick.selected} onTap={(it) => pick.toggle(it.key, it.value)} drag={s.inputMethod === 'drag'} snap={core.snap('row')} onDrop={(it) => add(it)} disabled={compared} />
         </>
       }
     />

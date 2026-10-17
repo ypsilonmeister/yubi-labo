@@ -52,3 +52,9 @@ export const OUTLINE = '#4a4036';
 export const SLOT_FILL = '#ece6da';
 export const SLOT_STROKE = '#9c8f7c';
 export const SLOT_STROKE_STRONG = '#3d342a';
+
+// 実装拡張（v2.2）: 植物（ランク）と位取りの区画。数の色（numberColor）とは別系統で、数の手がかりにはしない
+export const PLANT = { pot: '#c8794a', potRim: '#a85f36', soil: '#6b4a32', stem: '#4f8a3c', leaf: '#6dbb4a', leafDark: '#3f7f34', petal: '#f4a6c0', center: '#f6c343', fruit: '#e2574c', trunk: '#8b5a2b' };
+/** 位取りの区画の背景（10の位・1の位）。D の両替と C の部屋で共通に使う */
+export const PLACE_BG = { tens: '#dceaf7', ones: '#fdf0d5', machine: '#eef3e2' };
+export const PLACE_STROKE = { tens: '#5b86b0', ones: '#c99a3e', machine: '#7f9a5a' };

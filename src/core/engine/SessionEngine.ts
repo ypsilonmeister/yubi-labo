@@ -68,7 +68,7 @@ export class SessionEngine {
   }
 
   /** 試行を始める。出題前に §9.0 の範囲などを検証する */
-  startTrial(modeId: ModeId, question: Question, onCraft: (value: number, parts: number[]) => void): TrialHandle {
+  startTrial(modeId: ModeId, question: Question, onCraft: (value: number, parts: number[]) => void, roundId?: string): TrialHandle {
     const errs = validateQuestion(question);
     if (errs.length) throw new Error(`問題が不正です: ${errs.join(' / ')}`);
     if (this.current && !this.current.done) this.finishTrial(this.current, null, 'abandoned');
@@ -83,6 +83,7 @@ export class SessionEngine {
       events: [],
       startedAt: isoWithOffset(d),
       timeOfDay: timeOfDayOf(d),
+      ...(roundId ? { roundId } : {}),
     };
     session.trials.push(trial);
     const slot = { trial, done: false };

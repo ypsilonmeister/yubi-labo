@@ -1,6 +1,7 @@
 // Mode D の場面（コインの位置）を作る純粋関数。React に依存しない。
 // 繰り上がり: トレイの 1 が 10 枚になったら両替スロットで 10 に（5トークンONでは 1×5→5、5×2→10）。
-// 繰り下がり: 加数法（お釣り）。ねだん b のカードの空席（10−b）を埋め、はらった 1（u 枚）と合わせてお釣りにする。
+// 繰り下がり: 加数法（お釣り）。もっている お金のうち 10 だけで はらう。ねだん b のカードの空席（10−b）を おつりで埋め、
+// もったままの 1（u 枚）と合わせて「のこる お金」にする。
 
 import { countUpPlan, normalize, purseOf, type CoinValue, type Purse } from '../../core/math/coins';
 import { carryPlan } from '../../core/math/tenframe';
@@ -54,7 +55,7 @@ export const answerPos = (i: number, n: number) => {
 export const cardSeat = (i: number) => pair(i, CARD.x + 52, CARD.y + 58, 76, 76);
 const paidTen = () => ({ x: PAID.x + 60, y: PAID.y + 84 });
 const paidOne = (i: number) => pair(i, PAID.x + 160, PAID.y + 46, 70, 76);
-/** お釣りトレイ: 1つ目の群（10 にするぶん）と 2つ目の群（はらった 1）を1列あけて並べる */
+/** お釣りトレイ: 1つ目の群（10 にするぶん）と 2つ目の群（もったままの 1）を1列あけて並べる */
 export const changePos = (i: number, colShift = 0) => pair(i + colShift * 2, CHANGE.x + 50, CHANGE.y + 64, 64, 74);
 const cardOverflow = (j: number) => ({ x: CARD.x + CARD.w + 2 + (j % 2) * 2, y: CARD.y + 30 + j * 34 });
 
@@ -166,6 +167,51 @@ export function carryScenes(a: number, b: number, firstOperand: 'larger' | 'firs
   return { scenes: sim.scenes, final: purseIn(last, { x: TEN_TRAY.x, y: TEN_TRAY.y, w: ONES_TRAY.x + ONES_TRAY.w - TEN_TRAY.x, h: TEN_TRAY.h }), rest: p.rest };
 }
 
+/** v2.2 ダイレクト操作: 1のへやに入りきらなかったコイン（へやの右のふちに はみ出す） */
+export const spillPos = (j: number) => ({ x: ONES_TRAY.x + ONES_TRAY.w, y: ONES_TRAY.y + 34 + j * 44 });
+
+export interface CarryDirectPlan {
+  /** はじめ（もらうコインは「もらう」に並んでいる） */
+  start: DWorld;
+  /** もらうコインのうち、はじめの k 枚を 1のへやの空席へ（入りきらない分は はみ出す） */
+  fill: (k: number) => DWorld;
+  /** ぴったり10枚になったあとの場面（両替して10のへやへ → のこりを1のへやへ） */
+  after: DWorld[];
+  toFill: number;
+  second: number;
+  rest: number;
+}
+
+/**
+ * v2.2 ダイレクト操作の繰り上がり（5トークンOFFのみ）。
+ * 決定点は「もらうコインを何枚 1のへやへ入れるか」。ぴったり 10−first 枚なら両替が起きる。
+ */
+export function carryDirectPlan(a: number, b: number, firstOperand: 'larger' | 'first'): CarryDirectPlan {
+  const p = carryPlan(a, b, firstOperand);
+  const sc = carryScenes(a, b, firstOperand, false);
+  const s0 = sc.scenes[0];
+  const inc = s0.coins.filter((c) => c.id.startsWith('b')).map((c) => c.id);
+  const fill = (k: number): DWorld => ({
+    coins: s0.coins.map((c) => {
+      const j = inc.indexOf(c.id);
+      if (j < 0 || j >= k) return { ...c };
+      const seat = p.first + j;
+      return seat < 10 ? { ...c, ...onePos(seat) } : { ...c, ...spillPos(seat - 10), r: 20 };
+    }),
+  });
+  return { start: s0, fill, after: sc.scenes.slice(2), toFill: p.toFill, second: p.second, rest: p.rest };
+}
+
+/** 1のへやの席に座っているコイン（判定・テスト用） */
+export function onesSeated(w: DWorld): number {
+  return visible(w).filter((c) => c.value === 1 && Array.from({ length: 10 }, (_, i) => onePos(i)).some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 4)).length;
+}
+
+/** 1のへやから はみ出しているコイン（判定・テスト用） */
+export function onesSpilled(w: DWorld): number {
+  return visible(w).filter((c) => Array.from({ length: 10 }, (_, j) => spillPos(j)).some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 4)).length;
+}
+
 /** 自由探索: トレイ（財布）にコインを1枚足して正規化する場面 */
 export function exploreAddScenes(p: Purse, add: CoinValue, fiveToken: boolean): { scenes: DWorld[]; purse: Purse } {
   const sim = new TraySim();
@@ -224,7 +270,7 @@ export function borrowScript(m: number, b: number, fiveToken: boolean): BorrowSc
   const s2 = fillCard(p.toTen);
   // 10 にしたぶんがお釣りトレイへ
   const s3: DWorld = { coins: s2.coins.map((c) => (c.id.startsWith('c') ? { ...c, ...changePos(Number(c.id.slice(1))), r: COIN_R } : { ...c })) };
-  // はらった 1 もお釣りトレイへ（1列あけて別の群として）
+  // もったままの 1 も「のこる お金」へ（1列あけて別の群として）
   const shift = Math.ceil(p.toTen / 2) + 1;
   const s4: DWorld = { coins: s3.coins.map((c) => (c.id.startsWith('u') ? { ...c, ...changePos(Number(c.id.slice(1)), shift) } : { ...c })) };
   const steps: BorrowStep[] = [
