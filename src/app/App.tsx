@@ -1,361 +1,140 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Stage } from './Stage';
-import { VisualTimer } from './VisualTimer';
-import { HighlightPlayer } from './HighlightPlayer';
-import { HandCursorRing } from './HandCursorRing';
-import { StartScreen } from './screens/StartScreen';
-import { HomeScreen } from './screens/HomeScreen';
-import { FarmScreen } from './screens/FarmScreen';
+// シェル: 画面の切り替えと、設定・記録・エンジンのつなぎ込みだけを持つ
+
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Store } from '../core/storage/db';
+import { SessionEngine } from '../core/engine/SessionEngine';
+import type { PickContext } from '../core/engine/questions';
+import type { AppData, LearningStage, ModeId, TaskCategory } from '../core/types';
+import { isoWithOffset, jstDateKey } from '../core/time';
+import { HomeScreen, ModeScreen, StartScreen } from './screens/HomeScreens';
+import { PlayScreen, type PlaySpec } from './screens/PlayScreen';
+import { CraftBookScreen } from './screens/CraftBookScreen';
 import { EndScreen } from './screens/EndScreen';
-import { ZukanScreen } from './screens/ZukanScreen';
-import { ParentScreen } from './screens/ParentScreen';
-import { CalibrationScreen } from './screens/CalibrationScreen';
-import { MazeGame } from '../games/maze/MazeGame';
-import { KanjiGame } from '../games/kanji/KanjiGame';
-import { MojiGame } from '../games/moji/MojiGame';
-import { LabGame } from '../games/lab/LabGame';
-import { audioGuide } from '../core/audio/AudioGuide';
-import { SessionTimer } from '../core/engine/SessionTimer';
-import { selectLaunchHighlights, type Highlight } from '../core/engine/highlights';
-import {
-  currentInputKind,
-  disableHandMode,
-  enableHandMode,
-  type InputMode,
-} from '../core/input/inputProvider';
-import type { HandTracker } from '../core/tracking/HandTracker';
-import type { CalibrationMatrix } from '../core/tracking/calibration';
-import { getSetting, saveSession, type PlayRecord, type SessionRecord } from '../core/storage/db';
+import { ParentGate } from './ParentGate';
+import { ParentScreen } from './parent/ParentScreen';
 
 type Screen =
-  | 'start'
-  | 'launch-highlight'
-  | 'home'
-  | 'maze'
-  | 'kanji'
-  | 'moji'
-  | 'lab'
-  | 'farm'
-  | 'zukan'
-  | 'calibrate'
-  | 'parent'
-  | 'end';
-// シェル層オーバーレイ: lost=トラッキングロスト（§4.2.5）、rest=ひとやすみ（§4.2.6）
-type Overlay = 'none' | 'lost' | 'found' | 'rest';
+  | { name: 'start' }
+  | { name: 'home' }
+  | { name: 'mode'; mode: ModeId }
+  | { name: 'play'; spec: PlaySpec; key: number }
+  | { name: 'craft' }
+  | { name: 'end' }
+  | { name: 'parent'; back: Screen };
 
-const REST_AFTER_SEC = 90;
-const REST_DURATION_MS = 10_000;
+// 保存領域は1つだけ開く（StrictMode で effect が2回走っても同じ Store を使う）
+let storePromise: Promise<Store> | null = null;
 
 export function App() {
-  const [screen, setScreen] = useState<Screen>('start');
-  const [ratio, setRatio] = useState(1);
-  const [blink, setBlink] = useState(false);
-  const [endRequested, setEndRequested] = useState(false);
-  const [launchHighlights, setLaunchHighlights] = useState<Highlight[]>([]);
-  const [inputMode, setInputMode] = useState<InputMode>('pointer');
-  const [labEnabled, setLabEnabled] = useState(true);
-  const [handStatus, setHandStatus] = useState<'tracking' | 'lost'>('tracking');
-  const [overlay, setOverlay] = useState<Overlay>('none');
-
-  const timerRef = useRef<SessionTimer | null>(null);
-  const sessionRef = useRef<SessionRecord | null>(null);
-  const trackerRef = useRef<HandTracker | null>(null);
-  const handInitializingRef = useRef(false); // toggleInput 連打による二重初期化を防ぐ
-  const screenRef = useRef<Screen>('start');
-  const overlayRef = useRef<Overlay>('none');
-  const handUseSecRef = useRef(0);
-  screenRef.current = screen;
-  overlayRef.current = overlay;
-
-  // 🌟タップ = AudioContext の解錠を兼ねる（SPEC §9）
-  const begin = useCallback(async () => {
-    await audioGuide.unlock();
-    audioGuide.setVolume(await getSetting('volume', 1));
-    setLabEnabled(await getSetting('lab.enabled', true));
-
-    // セッション長: 保護者設定（デフォルト5分）。開発用に ?min= で上書き可。
-    const paramMin = new URLSearchParams(location.search).get('min');
-    const minutes = paramMin ? Math.max(0.2, parseFloat(paramMin)) : await getSetting('sessionMinutes', 5);
-
-    const timer = new SessionTimer(minutes * 60_000);
-    timer.onWarn = () => {
-      audioGuide.speak('app.session.warn');
-      setBlink(true);
-    };
-    timer.onEnd = () => setEndRequested(true);
-    timer.subscribe((_ms, r) => setRatio(r));
-    timerRef.current = timer;
-    sessionRef.current = {
-      id: crypto.randomUUID(),
-      startedAt: Date.now(),
-      endedAt: 0,
-      inputKind: currentInputKind(),
-      plays: [],
-    };
-
-    // 「きのうのきみ」（SPEC §4.6）: 記録がある場合のみ再生
-    const highlights = await selectLaunchHighlights();
-    if (highlights.length > 0) {
-      setLaunchHighlights(highlights);
-      setScreen('launch-highlight');
-    } else {
-      audioGuide.speak('app.welcome');
-      setScreen('home');
-    }
-  }, []);
-
-  const goHome = useCallback(() => {
-    audioGuide.speak('app.welcome');
-    setScreen('home');
-  }, []);
-
-  const openMaze = useCallback(() => {
-    setScreen('maze');
-    timerRef.current?.start();
-  }, []);
-
-  const openKanji = useCallback(() => {
-    setScreen('kanji');
-    timerRef.current?.start();
-  }, []);
-
-  const openMoji = useCallback(() => {
-    setScreen('moji');
-    timerRef.current?.start();
-  }, []);
-
-  const openLab = useCallback(() => {
-    setScreen('lab');
-    timerRef.current?.start();
-  }, []);
-
-  const openFarm = useCallback(() => setScreen('farm'), []);
-  const openZukan = useCallback(() => setScreen('zukan'), []);
-  const openParent = useCallback(() => setScreen('parent'), []);
-  const backHome = useCallback(() => setScreen('home'), []);
-
-  const recordPlay = useCallback((play: PlayRecord) => {
-    sessionRef.current?.plays.push(play);
-  }, []);
-
-  const finishSession = useCallback(() => {
-    timerRef.current?.pause();
-    const s = sessionRef.current;
-    if (s) {
-      s.endedAt = Date.now();
-      void saveSession(s);
-    }
-    setScreen('end');
-  }, []);
-
-  // ── ハンドトラッキング（P3, SPEC §4.2） ──────────────────────
-
-  // §4.2.5 原則7: ロストは機器の問題として提示し、ゲームを自動ポーズ
-  const handleTrackStatus = useCallback((s: 'tracking' | 'lost') => {
-    setHandStatus(s);
-    const inGame =
-      screenRef.current === 'maze' ||
-      screenRef.current === 'kanji' ||
-      screenRef.current === 'moji' ||
-      screenRef.current === 'lab';
-    if (s === 'lost') {
-      if (inGame && overlayRef.current === 'none') {
-        timerRef.current?.pause();
-        setOverlay('lost');
-        audioGuide.speak('hand.lost');
-      }
-    } else if (overlayRef.current === 'lost') {
-      setOverlay('found');
-      audioGuide.speak('hand.found');
-      window.setTimeout(() => {
-        setOverlay('none');
-        timerRef.current?.start();
-      }, 3000);
-    }
-  }, []);
-
-  const stopHand = useCallback(() => {
-    trackerRef.current?.stop();
-    trackerRef.current = null;
-    disableHandMode();
-    setInputMode('pointer');
-    setOverlay('none');
-    if (sessionRef.current) sessionRef.current.inputKind = currentInputKind();
-  }, []);
-
-  const finishHandEnable = useCallback(async (matrix: CalibrationMatrix) => {
-    const tracker = trackerRef.current;
-    if (!tracker) return;
-    const { HandPointerSource } = await import('../core/input/HandPointerSource');
-    const gesture = await getSetting<'dwell' | 'pinch'>('hand.gesture', 'dwell');
-    enableHandMode(() => new HandPointerSource(tracker, matrix, gesture));
-    setInputMode('hand');
-    if (sessionRef.current) sessionRef.current.inputKind = 'hand';
-    setScreen('home');
-  }, []);
-
-  const toggleInput = useCallback(async () => {
-    if (inputMode === 'hand') {
-      stopHand();
-      return;
-    }
-    // inputMode の更新は初期化完了後（非同期）なので、連打で if ガードを
-    // すり抜けて HandTracker が二重生成されるのを同期フラグで防ぐ
-    if (handInitializingRef.current) return;
-    handInitializingRef.current = true;
-    try {
-      // MediaPipe 一式はハンド初回有効化まで読み込まない（バンドル分離）
-      const [{ HandTracker }, calib] = await Promise.all([
-        import('../core/tracking/HandTracker'),
-        import('../core/tracking/calibration'),
-      ]);
-      const tracker = new HandTracker();
-      tracker.onStatus = handleTrackStatus;
-      await tracker.start();
-      trackerRef.current = tracker;
-      const saved = await calib.loadCalibration();
-      if (saved) {
-        await finishHandEnable(saved);
-      } else {
-        setScreen('calibrate');
-      }
-    } catch (e) {
-      // 原則7: 子どもには camera.unavailable のみ伝える。詳細はコンソールに残す。
-      console.error('[toggleInput] hand mode init failed', e);
-      trackerRef.current?.stop();
-      trackerRef.current = null;
-      audioGuide.speak('camera.unavailable');
-    } finally {
-      handInitializingRef.current = false;
-    }
-  }, [inputMode, stopHand, finishHandEnable, handleTrackStatus]);
-
-  const openCalibrate = useCallback(() => setScreen('calibrate'), []);
-  const cancelCalibrate = useCallback(() => {
-    if (inputMode !== 'hand') stopHand();
-    setScreen('home');
-  }, [inputMode, stopHand]);
-
-  // §4.2.6 疲労対策: ハンド入力で連続90秒プレイ → 10秒の「ひとやすみ」
+  const [store, setStore] = useState<Store | null>(null);
   useEffect(() => {
-    const inGame = screen === 'maze' || screen === 'kanji' || screen === 'moji' || screen === 'lab';
-    if (inputMode !== 'hand' || !inGame) {
-      handUseSecRef.current = 0;
-      return;
-    }
-    if (overlay !== 'none') return;
-    const iv = window.setInterval(() => {
-      handUseSecRef.current += 1;
-      if (handUseSecRef.current >= REST_AFTER_SEC) {
-        handUseSecRef.current = 0;
-        timerRef.current?.pause();
-        setOverlay('rest');
-        audioGuide.speak('hand.rest');
-        window.setTimeout(() => {
-          setOverlay('none');
-          audioGuide.speak('hand.rest.done');
-          timerRef.current?.start();
-        }, REST_DURATION_MS);
-      }
-    }, 1000);
-    return () => window.clearInterval(iv);
-  }, [screen, inputMode, overlay]);
+    storePromise ??= Store.open();
+    void storePromise.then(setStore);
+  }, []);
+  if (!store) return <div className="screen center muted">…</div>;
+  return <Loaded store={store} />;
+}
 
-  const inGame =
-    screen === 'maze' || screen === 'kanji' || screen === 'moji' || screen === 'lab';
+function Loaded({ store }: { store: Store }) {
+  useSyncExternalStore(
+    useCallback((fn: () => void) => store.subscribe(fn), [store]),
+    () => store.version,
+  );
+  const data = store.data;
+  const settings = data.profile.settings;
+  const learning = data.profile.learning!;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const learningRef = useRef(learning);
+  learningRef.current = learning;
+  const engineRef = useRef<SessionEngine | null>(null);
+  if (!engineRef.current) engineRef.current = new SessionEngine(store, () => settingsRef.current, () => learningRef.current);
+  const engine = engineRef.current;
+  useEffect(() => () => engine.dispose(), [engine]);
+
+  const [screen, setScreen] = useState<Screen>({ name: 'start' });
+  const playKey = useRef(0);
+
+  const pickContext = useCallback((): PickContext => {
+    const today = jstDateKey(isoWithOffset());
+    const recentIds = engine.session?.trials.map((t) => t.question.id) ?? [];
+    const priorDayIds = new Set<string>();
+    for (const s of store.data.sessions)
+      for (const t of s.trials)
+        if (t.result?.outcome === 'completed' && jstDateKey(t.startedAt ?? s.startedAt) < today) priorDayIds.add(t.question.id);
+    return { recentIds, priorDayIds };
+  }, [engine, store]);
+
+  const play = (spec: PlaySpec) => setScreen({ name: 'play', spec, key: ++playKey.current });
+  const onCraft = (value: number, parts: number[], mode: ModeId) => {
+    store.addCraft({ value, parts, firstMadeAt: isoWithOffset(), modeId: mode });
+  };
+
+  const saveProfile = (p: AppData['profile']) => {
+    void store.saveProfile(p);
+    engine.emitShell({ type: 'settings_changed' });
+  };
+
+  const openParent = () => setScreen((cur) => (cur.name === 'parent' ? cur : { name: 'parent', back: cur.name === 'play' ? { name: 'home' } : cur }));
+  const childScreen = screen.name !== 'parent';
 
   return (
-    <Stage>
-      {(screen === 'home' || inGame) && <VisualTimer ratio={ratio} blink={blink} />}
-      {screen === 'start' && <StartScreen onBegin={begin} />}
-      {screen === 'launch-highlight' && (
-        <HighlightPlayer highlights={launchHighlights} withIntro onDone={goHome} />
-      )}
-      {screen === 'home' && (
+    <div className={`app scheme-${settings.colorScheme}${settings.quietMode ? ' quiet' : ''}${settings.reducedMotion ? ' reduce-motion' : ''}`}>
+      {screen.name === 'start' && <StartScreen onStart={() => setScreen({ name: 'home' })} />}
+      {screen.name === 'home' && (
         <HomeScreen
-          onOpenMaze={openMaze}
-          onOpenKanji={openKanji}
-          onOpenMoji={openMoji}
-          onOpenLab={openLab}
-          labEnabled={labEnabled}
-          onOpenFarm={openFarm}
-          onOpenZukan={openZukan}
-          onOpenParent={openParent}
-          inputMode={inputMode}
-          onToggleInput={() => void toggleInput()}
-          onCalibrate={openCalibrate}
+          s={settings}
+          learning={learning}
+          onMode={(mode) => setScreen({ name: 'mode', mode })}
+          onCraft={() => setScreen({ name: 'craft' })}
+          onEnd={() => {
+            engine.endSession('child_chose_end');
+            setScreen({ name: 'end' });
+          }}
         />
       )}
-      {screen === 'farm' && <FarmScreen onBack={backHome} />}
-      {screen === 'zukan' && <ZukanScreen onBack={backHome} />}
-      {screen === 'parent' && <ParentScreen onBack={backHome} />}
-      {screen === 'calibrate' &&
-        (trackerRef.current ? (
-          <CalibrationScreen
-            tracker={trackerRef.current}
-            onDone={(m) => void finishHandEnable(m)}
-            onCancel={cancelCalibrate}
-          />
-        ) : (
-          <HomeScreen
-            onOpenMaze={openMaze}
-            onOpenKanji={openKanji}
-            onOpenMoji={openMoji}
-            onOpenLab={openLab}
-            labEnabled={labEnabled}
-            onOpenFarm={openFarm}
-            onOpenZukan={openZukan}
-            onOpenParent={openParent}
-            inputMode={inputMode}
-            onToggleInput={() => void toggleInput()}
-            onCalibrate={openCalibrate}
-          />
-        ))}
-      {screen === 'maze' && (
-        <MazeGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
+      {screen.name === 'mode' && (
+        <ModeScreen
+          s={settings}
+          mode={screen.mode}
+          onBack={() => setScreen({ name: 'home' })}
+          onPlay={(task: TaskCategory, stage: LearningStage) => play({ mode: screen.mode, task, stage })}
+        />
       )}
-      {screen === 'kanji' && (
-        <KanjiGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
+      {screen.name === 'play' && (
+        <PlayScreen
+          key={screen.key}
+          spec={screen.spec}
+          engine={engine}
+          settings={settings}
+          learning={learning}
+          pickContext={pickContext}
+          onCraft={onCraft}
+          onExit={() => setScreen({ name: 'mode', mode: screen.spec.mode })}
+          onTransfer={play}
+        />
       )}
-      {screen === 'moji' && (
-        <MojiGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
+      {screen.name === 'craft' && <CraftBookScreen entries={data.craftBook ?? []} s={settings} onBack={() => setScreen({ name: 'home' })} />}
+      {screen.name === 'end' && (
+        <EndScreen
+          askSelfReport={learning.selfReportEnabled}
+          onReport={(r) => {
+            const last = store.data.sessions[store.data.sessions.length - 1];
+            if (last) void store.updateSession(last.sessionId, { childSelfReport: r });
+          }}
+          onAgain={() => setScreen({ name: 'start' })}
+        />
       )}
-      {screen === 'lab' && (
-        <LabGame endRequested={endRequested} onPlay={recordPlay} onFinish={finishSession} />
+      {screen.name === 'parent' && (
+        <ParentScreen
+          store={store}
+          onSaveProfile={saveProfile}
+          onEndSession={() => engine.endSession('parent_ended')}
+          sessionOpen={engine.hasOpenSession()}
+          onClose={() => setScreen(screen.back)}
+        />
       )}
-      {screen === 'end' && <EndScreen session={sessionRef.current} />}
-
-      {/* ハンド入力の共通UI: 状態アイコン・ドウェルリング・オーバーレイ */}
-      {inputMode === 'hand' && (screen === 'home' || inGame) && (
-        <div
-          className={`hand-status-icon ${handStatus === 'tracking' ? 'ok' : 'lost'}`}
-          aria-hidden="true"
-        >
-          🖐
-        </div>
-      )}
-      {inputMode === 'hand' && inGame && <HandCursorRing />}
-      {overlay === 'lost' && (
-        <div className="shell-overlay">
-          <div className="overlay-icon">📷</div>
-          <div className="overlay-sub">🖐</div>
-        </div>
-      )}
-      {overlay === 'found' && (
-        <div className="shell-overlay">
-          <div className="overlay-icon">🖐</div>
-          <div className="count-dots" aria-hidden="true">
-            <span>●</span>
-            <span>●</span>
-            <span>●</span>
-          </div>
-        </div>
-      )}
-      {overlay === 'rest' && (
-        <div className="shell-overlay">
-          <div className="overlay-icon rest-float">🙆</div>
-        </div>
-      )}
-    </Stage>
+      {childScreen && <ParentGate onOpen={openParent} />}
+    </div>
   );
 }
