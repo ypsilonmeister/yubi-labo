@@ -3,6 +3,8 @@ import type { AccessibilitySettings, LearningSettings, LearningStage, ModeId, Ta
 import { GameRegistry } from '../../core/registry';
 import { ModeIcon, TaskIcon } from '../icons';
 import { STAGE_LABEL, taskLabel } from '../labels';
+import { Plant } from '../Plant';
+import { nextRank, rankOf, type RoundRecord } from '../../core/score';
 
 type S = Readonly<AccessibilitySettings>;
 
@@ -17,12 +19,58 @@ export function StartScreen({ onStart }: { onStart: () => void }) {
   );
 }
 
-export function HomeScreen(props: { s: S; learning: Readonly<LearningSettings>; onMode: (m: ModeId) => void; onCraft: () => void; onEnd: () => void }) {
+export interface ScoreView {
+  points: number;
+}
+
+/** 植物とランク（v2.2・保護者判断で表示） */
+export function PlantCard({ points, onRanking }: { points: number; onRanking?: () => void }) {
+  const rank = rankOf(points);
+  const next = nextRank(points);
+  return (
+    <div className="plant-card">
+      <Plant level={rank.level} size={120} label={`${rank.name} の しょくぶつ`} />
+      <div className="plant-info">
+        <div className="plant-rank">
+          ランク <b>{rank.level + 1}</b>　{rank.name}
+        </div>
+        <div className="plant-points">
+          <b>{points}</b> てん
+        </div>
+        {next && (
+          <div className="plant-next">
+            <span>つぎは</span>
+            <Plant level={next.level} size={36} label={next.name} />
+            <span>
+              {next.name}（{next.min}てん）
+            </span>
+          </div>
+        )}
+      </div>
+      {onRanking && (
+        <button type="button" className="btn-soft small plant-rank-btn" onClick={onRanking}>
+          🏆 きろく
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function HomeScreen(props: {
+  s: S;
+  learning: Readonly<LearningSettings>;
+  score: ScoreView | null;
+  onMode: (m: ModeId) => void;
+  onCraft: () => void;
+  onRanking: () => void;
+  onEnd: () => void;
+}) {
   return (
     <div className="screen">
-      <div className="tile-grid">
+      {props.score && <PlantCard points={props.score.points} onRanking={props.onRanking} />}
+      <div className="tile-grid home-grid">
         {GameRegistry.all().map((p) => (
-          <button key={p.id} type="button" className="tile" onClick={() => props.onMode(p.id)} aria-label={p.title}>
+          <button key={p.id} type="button" className="tile tile-mode" onClick={() => props.onMode(p.id)} aria-label={p.title}>
             <ModeIcon mode={p.id} s={props.s} />
             <span>{p.title}</span>
           </button>
@@ -43,6 +91,49 @@ export function HomeScreen(props: { s: S; learning: Readonly<LearningSettings>; 
       </div>
     </div>
   );
+}
+
+/** 自分の記録のランキング（ほかの人とは比べない） */
+export function RankingScreen({ list, points, onBack }: { list: RoundRecord[]; points: number; onBack: () => void }) {
+  return (
+    <div className="screen">
+      <header className="screen-header">
+        <button type="button" className="btn-icon" onClick={onBack} aria-label="もどる">
+          ←
+        </button>
+        <h2>🏆 きろく</h2>
+      </header>
+      <PlantCard points={points} />
+      <RankingList list={list} />
+    </div>
+  );
+}
+
+export function RankingList({ list, highlight }: { list: RoundRecord[]; highlight?: string }) {
+  if (!list.length) return <p className="muted center-text">ラウンドを さいごまで やると、ここに のこるよ</p>;
+  return (
+    <ol className="ranking">
+      {list.map((r, i) => (
+        <li key={r.roundId} className={r.roundId === highlight ? 'is-now' : undefined}>
+          <span className="ranking-pos">{i + 1}</span>
+          <ModeIconById mode={r.modeId} />
+          <span className="ranking-points">
+            <b>{r.points}</b> てん
+          </span>
+          <span className="ranking-date">{shortDate(r.startedAt)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ModeIconById({ mode }: { mode: ModeId }) {
+  return <span className="ranking-mode">{GameRegistry.get(mode).title}</span>;
+}
+
+function shortDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${Number(m[2])}/${Number(m[3])}` : '';
 }
 
 export function ModeScreen(props: { s: S; mode: ModeId; onPlay: (task: TaskCategory, stage: LearningStage) => void; onBack: () => void }) {

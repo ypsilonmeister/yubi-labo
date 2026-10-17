@@ -11,7 +11,7 @@ export const TASK_LABEL: Record<TaskCategory, string> = {
 };
 
 export function taskLabel(task: TaskCategory, mode: ModeId): string {
-  if (task === 'borrow' && mode === 'mode_d_exchange') return 'おつり';
+  if (task === 'borrow' && mode === 'mode_d_exchange') return 'おかいもの';
   if (task === 'carry_over' && mode === 'mode_d_exchange') return 'りょうがえ';
   return TASK_LABEL[task];
 }

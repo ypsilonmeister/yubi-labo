@@ -3,6 +3,7 @@ import { useBridge, type ModeBridge } from './bridge';
 import { Animator } from './Animator';
 import { exploredResult, makeResult } from './result';
 import { softChime } from '../../core/sound';
+import type { Snap } from './snap';
 
 export type DemoPhase = null | 'pick' | 'place';
 
@@ -68,9 +69,18 @@ export function useTrialCore(bridge: ModeBridge) {
     ctx.complete(exploredResult());
   }, [ctx]);
 
+  /** v2.2: ダイレクト操作のとき、置き先 to へのワンタップ・オートスナップ。OFF なら undefined（選ぶ→置き先をタップ） */
+  const snap = useCallback(
+    (to: string | null | undefined): Snap | undefined =>
+      s.settings.directManipulation && to ? { to, ms: anim.ms(420), run: (fly) => anim.run('snap', fly) } : undefined,
+    [s.settings.directManipulation, anim],
+  );
+
   return {
     s,
     q: s.question!,
+    direct: s.settings.directManipulation,
+    snap,
     settings: s.settings,
     hintLevel: s.hintLevel,
     ctx,

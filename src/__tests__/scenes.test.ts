@@ -104,3 +104,32 @@ describe('Mode D 両替（全組み合わせ × 5トークン）', () => {
     });
   }
 });
+
+describe('v2.2 ダイレクト操作: D 繰り上がりの「ちぎる位置」（全36通り × 先に入れる数）', () => {
+  for (const first of ['larger', 'first'] as const)
+    it(first, () => {
+      for (const [a, b] of allCarryPairs()) {
+        const plan = D.carryDirectPlan(a, b, first);
+        const p = carryPlan(a, b, first);
+        expect(plan.second).toBe(p.second);
+        expect(D.onesSeated(plan.start)).toBe(p.first);
+        // ちぎる位置は、ぴったり 10 になる1か所だけ。ほかは すきまが残るか、はみ出す
+        for (let k = 1; k <= p.second; k++) {
+          const w = plan.fill(k);
+          expect(D.onesSeated(w)).toBe(p.first + Math.min(k, p.toFill));
+          expect(D.onesSpilled(w)).toBe(Math.max(0, k - p.toFill));
+          const exact = D.onesSeated(w) === 10 && D.onesSpilled(w) === 0;
+          expect(exact).toBe(k === p.toFill);
+          // 入れたコインと残りのコインの合計は変わらない
+          expect(D.purseIn(w, { x: 0, y: 0, w: D.W, h: D.H })[1]).toBe(a + b);
+        }
+        // ぴったりのあとは、10 が1枚と のこり rest 枚になる
+        const last = plan.after[plan.after.length - 1];
+        const tray = D.purseIn(last, { x: D.TEN_TRAY.x, y: D.TEN_TRAY.y, w: D.ONES_TRAY.x + D.ONES_TRAY.w - D.TEN_TRAY.x, h: D.TEN_TRAY.h });
+        expect(tray[10]).toBe(1);
+        expect(tray[1]).toBe(p.rest);
+        // はじめの最初の場面は、ぴったり入れた場面と同じ位置から続く
+        expect(plan.fill(p.toFill).coins.map((c) => [c.id, c.x, c.y])).toEqual(D.carryScenes(a, b, first, false).scenes[1].coins.map((c) => [c.id, c.x, c.y]));
+      }
+    });
+});

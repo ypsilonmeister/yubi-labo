@@ -6,6 +6,7 @@ import { useMemo, useRef, useState } from 'react';
 import { createReactPlugin, useBridge, type ModeBridge } from '../kit/bridge';
 import { useTrialCore, usePicker, type TrialCore } from '../kit/useTrialCore';
 import { ChoiceTray, type ChoiceItem } from '../kit/ChoiceTray';
+import { SplitPicker } from '../kit/SplitPicker';
 import { HistoryStrip, ModeLayout, StepControls, successClass } from '../kit/ui';
 import { numberColor, OUTLINE, SLOT_FILL, SLOT_STROKE, SLOT_STROKE_STRONG, inkOn } from '../../core/colors';
 import { choicesOf } from '../../core/engine/questions';
@@ -187,6 +188,34 @@ function GroupIcon({ n, s }: { n: number; s: S }) {
   );
 }
 
+/** ちぎる手札のスライム1匹 */
+function SlimeToken({ tone, s }: { tone: number; s: S }) {
+  const color = numberColor(tone, s.colorScheme);
+  return (
+    <svg width={40} height={40} viewBox="-20 -20 40 40" aria-hidden>
+      <path d="M-16 11 Q-16 -16 0 -16 Q16 -16 16 11 Z" fill={color} stroke={OUTLINE} strokeWidth={2} />
+      <circle cx={-5} cy={-3} r={2} fill={inkOn(color)} />
+      <circle cx={5} cy={-3} r={2} fill={inkOn(color)} />
+    </svg>
+  );
+}
+
+/** v2.2 ダイレクト操作: ちぎる手札に出すむれ（数と色） */
+function splitSource(core: TrialCore, target: Target): { n: number; tone: number; label: string } {
+  const [a, b] = core.q.operands;
+  if (target === 'bus') return { n: 10, tone: 10, label: 'ひらいた 10' };
+  if (core.q.taskType === 'carry_over') {
+    const second = core.settings.carryFirstOperand === 'larger' ? Math.min(a, b) : b;
+    return { n: second, tone: second, label: 'まっている むれ' };
+  }
+  return { n: 9, tone: 1, label: 'スライム' };
+}
+
+/** 決定点の前に、ちぎる手札と同じむれを場面から隠す（同じものが2か所に見えないように） */
+function hideWaiting(w: World): World {
+  return { ...w, blobs: w.blobs.map((b) => (b.id.startsWith('w') ? { ...b, opacity: 0 } : b)) };
+}
+
 function groupChoices(values: number[], s: S): ChoiceItem[] {
   return values.map((v, i) => ({ key: `g${i}-${v}`, value: v, label: 'スライムの むれ', node: <GroupIcon n={v} s={s} /> }));
 }
@@ -208,6 +237,13 @@ const PROMPT: Record<string, string> = {
   carry_predict: 'あふれて 1の へやに のこるのは どの むれかな',
   complement_predict: 'あいている ところに はいるのは どの むれかな',
   borrow_predict: 'さいごに 1の へやに のこるのは どの むれかな',
+};
+
+/** v2.2 ダイレクト操作の問いかけ（「ちぎる位置」をタップする） */
+const DIRECT_PROMPT: Record<string, string> = {
+  carry_D1: 'どこで ちぎると、あいている ところに ぴったり はいるかな',
+  complement_D1: 'どこまで いれると、ぴったり うまるかな',
+  borrow_D1: 'ひらいた 10から、どこまで バスに のせるかな',
 };
 
 function taskKey(core: TrialCore): 'carry' | 'borrow' | 'complement' {
@@ -239,7 +275,13 @@ function ConstructTask({ core }: { core: TrialCore }) {
   const pick = usePicker(core);
   const step: Step | undefined = script.steps[idx];
   const decide = step?.kind === 'decide' ? step : null;
-  const showBox = script.steps.some((x) => x.kind === 'decide' && x.target === 'box');
+  // v2.2 ダイレクト操作: 置く決定（フレーム・バス）は「ちぎる位置」をタップ。？の箱を選ぶ決定は省き、置き終わったらそのまま最後まで見せる
+  const direct = core.direct;
+  const skipStep = (x: Step) => direct && x.kind === 'decide' && x.target === 'box';
+  const showBox = script.steps.some((x) => x.kind === 'decide' && x.target === 'box' && !skipStep(x));
+  const splitting = direct && !!decide && (decide.target === 'frame' || decide.target === 'bus');
+  const [placed, setPlaced] = useState(false);
+  const base = (w: World) => (direct ? hideWaiting(w) : w);
 
   const choices = useMemo(() => {
     if (!decide) return [];
@@ -259,6 +301,7 @@ function ConstructTask({ core }: { core: TrialCore }) {
       async () => {
         for (; i < script.steps.length; i++) {
           const st = script.steps[i];
+          if (skipStep(st)) continue;
           if (st.kind !== 'scene') break;
           hist.push(w);
           setHistory((h) => [...h, w].slice(-4));
@@ -268,7 +311,7 @@ function ConstructTask({ core }: { core: TrialCore }) {
           await core.anim.wait(200);
         }
       },
-      { keepDisabled: from < script.steps.length && script.steps.slice(from).every((x) => x.kind === 'scene') },
+      { keepDisabled: from < script.steps.length && script.steps.slice(from).every((x) => x.kind === 'scene' || skipStep(x)) },
     );
     if (!ran) return;
     preDecision.current = w;
@@ -285,6 +328,7 @@ function ConstructTask({ core }: { core: TrialCore }) {
     if (mismatch !== null) {
       setWorld(preDecision.current);
       setMismatch(null);
+      setPlaced(false);
       core.ctx.emit({ type: 'undo' });
     } else if (boxValue !== null && !revealed) {
       setBoxValue(null);
@@ -340,21 +384,23 @@ function ConstructTask({ core }: { core: TrialCore }) {
       return;
     }
     // フレーム・バスへ置く決定: 違うときは、はみ出し／足りない様子のまま止める（一手戻しで取り消せる）
+    setPlaced(true);
     if (!correct) {
       core.mistakes.current++;
       setMismatch(k);
       const target = decide.mismatch ? decide.mismatch(k) : world;
-      const fromW = preDecision.current;
+      const fromW = base(preDecision.current);
       await core.anim.run('mismatch', () => core.anim.tween(800, (tt) => setWorld(lerpWorld(fromW, target, tt))));
       return;
     }
     setMismatch(null);
-    await playFrom(idx + 1, preDecision.current);
+    await playFrom(idx + 1, base(preDecision.current));
   };
 
   // ヒント L3: 正しい群を示し、置いた様子を半透明で見せる
   const demoWorld = core.demo === 'place' && decide?.mismatch ? decide.mismatch(decide.answer) : null;
-  const prompt = step?.kind === 'tapKing' ? PROMPT.tapKing : decide ? PROMPT[`${taskKey(core)}_${decide.id}`] : '';
+  const prompt =
+    step?.kind === 'tapKing' ? PROMPT.tapKing : decide ? (splitting ? DIRECT_PROMPT : PROMPT)[`${taskKey(core)}_${decide.id}`] ?? PROMPT[`${taskKey(core)}_${decide.id}`] : '';
   const emphasize = core.hintLevel >= 1 ? (step?.kind === 'tapKing' ? 'king' : decide?.target ?? null) : step?.kind === 'tapKing' ? 'king' : null;
 
   return (
@@ -362,7 +408,7 @@ function ConstructTask({ core }: { core: TrialCore }) {
       prompt={prompt}
       field={
         <div style={{ position: 'relative', width: '100%' }}>
-          <Field world={world} s={s} emphasize={emphasize} boxValue={core.demo === 'place' && decide?.target === 'box' ? decide.answer : boxValue} showBox={showBox} glow={ok} onTarget={(t) => void onTarget(t)} />
+          <Field world={splitting && !placed ? base(world) : world} s={s} emphasize={emphasize} boxValue={core.demo === 'place' && decide?.target === 'box' ? decide.answer : boxValue} showBox={showBox} glow={ok} onTarget={(t) => void onTarget(t)} />
           {demoWorld && (
             <div style={{ position: 'absolute', inset: 0, opacity: 0.45, pointerEvents: 'none' }}>
               <Field world={demoWorld} s={s} />
@@ -372,7 +418,20 @@ function ConstructTask({ core }: { core: TrialCore }) {
       }
       history={<HistoryStrip items={history.map((h, i) => ({ key: String(i), node: <Field world={h} s={s} thumb showBox={showBox} /> }))} />}
       tray={
-        decide ? (
+        splitting && decide ? (
+          <SplitPicker
+            key={`${idx}`}
+            n={splitSource(core, decide.target).n}
+            label={splitSource(core, decide.target).label}
+            token={() => <SlimeToken tone={splitSource(core, decide.target).tone} s={s} />}
+            snap={core.snap(decide.target)}
+            onSelect={(k) => core.ctx.emit({ type: 'item_selected', payload: { split: k } })}
+            onPick={(k) => void decideWith(k)}
+            allowed={core.hintLevel >= 2 ? values : null}
+            demoK={core.demo === 'pick' ? decide.answer : null}
+            disabled={ok}
+          />
+        ) : decide ? (
           <ChoiceTray
             items={items}
             selected={pick.selected}
@@ -458,6 +517,7 @@ function PredictTask({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          snap={core.snap('box')}
           onDrop={(it, id) => id === 'box' && void choose(it.value)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === answer)?.key : null}
           disabled={pred !== null}
@@ -570,7 +630,7 @@ function ExploreTask({ core }: { core: TrialCore }) {
               さいしょから
             </button>
           </div>
-          <ChoiceTray items={items} selected={pick.selected} onTap={(it) => pick.toggle(it.key, it.value)} drag={s.inputMethod === 'drag'} onDrop={(it, id) => id === 'frame' && void add(it.value)} />
+          <ChoiceTray items={items} selected={pick.selected} onTap={(it) => pick.toggle(it.key, it.value)} drag={s.inputMethod === 'drag'} snap={core.snap('frame')} onDrop={(it, id) => id === 'frame' && void add(it.value)} />
         </>
       }
     />

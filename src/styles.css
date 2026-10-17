@@ -990,3 +990,335 @@ button:disabled {
     height: auto;
   }
 }
+
+/* ---------- v2.2: 植物・ランク・ラウンド ---------- */
+
+.plant-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  margin: 0 40px;
+  border-radius: 24px;
+  border: 3px solid var(--line);
+  background: var(--paper);
+  flex-wrap: wrap;
+}
+
+.plant-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 160px;
+}
+
+.plant-rank {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.plant-points {
+  font-size: 18px;
+}
+
+.plant-points b {
+  font-size: 34px;
+  color: var(--accent);
+}
+
+.plant-next {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.plant-rank-btn {
+  flex: none;
+}
+
+.home-grid .tile-mode {
+  min-height: 170px;
+}
+
+.round-meter {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.round-leaves {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  max-width: 200px;
+}
+
+.round-leaves .leaf {
+  width: 14px;
+  height: 18px;
+  border-radius: 0 100% 0 100%;
+  border: 2px solid #8fb97a;
+  background: transparent;
+}
+
+.round-leaves .leaf.on {
+  background: #6dbb4a;
+  border-color: #3f7f34;
+}
+
+.round-points {
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+.round-points b {
+  font-size: 26px;
+  color: var(--accent);
+}
+
+.points-chip {
+  align-self: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #e6f2dc;
+  border: 2px solid #8fb97a;
+  font-size: 22px;
+  font-weight: 700;
+  color: #3f7f34;
+}
+
+.round-result {
+  position: fixed;
+  inset: 0;
+  background: rgba(58, 50, 38, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 20;
+}
+
+.round-result-card {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  background: var(--paper);
+  border-radius: 28px;
+  border: 3px solid var(--line);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.round-result-card h2 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.round-result-points {
+  font-size: 56px;
+  color: var(--accent);
+}
+
+.round-result-plant {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.grow-arrow {
+  font-size: 32px;
+  color: var(--muted);
+  padding-bottom: 40px;
+}
+
+.round-result-rank {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.round-result-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ranking {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ranking li {
+  display: grid;
+  grid-template-columns: 40px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: var(--paper);
+  text-align: left;
+}
+
+.ranking li.is-now {
+  border-color: var(--accent);
+  background: #e6f2dc;
+}
+
+.ranking-pos {
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ranking li:nth-child(1) .ranking-pos::before {
+  content: '🥇';
+}
+
+.ranking li:nth-child(2) .ranking-pos::before {
+  content: '🥈';
+}
+
+.ranking li:nth-child(3) .ranking-pos::before {
+  content: '🥉';
+}
+
+.ranking li:nth-child(-n + 3) .ranking-pos {
+  font-size: 0;
+}
+
+.ranking li:nth-child(-n + 3) .ranking-pos::before {
+  font-size: 26px;
+}
+
+.ranking-mode {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.ranking-points b {
+  font-size: 22px;
+}
+
+.ranking-date {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (max-width: 560px) {
+  .plant-card {
+    margin: 0;
+  }
+  .round-meter .round-leaves {
+    display: none;
+  }
+}
+
+/* ---------- v2.2: ダイレクト操作（ちぎる手札・オートスナップ） ---------- */
+
+.split-picker {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+.split-grid {
+  display: grid;
+  grid-template-rows: repeat(2, auto);
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 3px dashed var(--line);
+  background: var(--paper);
+}
+
+.split-token {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  border: 3px solid transparent;
+  background: transparent;
+  padding: 0;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.split-token.is-lit {
+  background: #e6f2dc;
+  border-color: #8fb97a;
+  transform: translateY(-4px);
+}
+
+.split-token.is-demo {
+  border-color: var(--ink);
+  border-style: dashed;
+}
+
+.split-token.is-flying {
+  opacity: 0.25;
+}
+
+.split-token:disabled {
+  opacity: 0.35;
+}
+
+.choice.is-flying {
+  opacity: 0.3;
+}
+
+.snap-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.snap-ghost {
+  position: fixed;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.reduce-motion .split-token {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-token {
+    transition: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .play-title span {
+    font-size: 15px;
+    line-height: 1.2;
+  }
+  .round-points b {
+    font-size: 22px;
+  }
+  .split-token {
+    width: 52px;
+    height: 52px;
+  }
+}

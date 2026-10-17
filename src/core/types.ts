@@ -47,6 +47,8 @@ export interface AccessibilitySettings {
   carryFirstOperand: 'larger' | 'first';
   borrowStrategy: 'subtract_from_ten' | 'subtract_subtract';
   fiveToken: boolean;
+  /** 実装拡張（v2.2）: 手札で選んで置き先をタップする代わりに、1タップで置き先へ吸い込む／ちぎる位置をタップする */
+  directManipulation: boolean;
 }
 
 // 実装拡張: 出題・分析まわりの保護者設定（AccessibilitySettings とは別に保存）
@@ -58,6 +60,12 @@ export interface LearningSettings {
   idleThresholdMs: number;
   selfReportEnabled: boolean;
   craftBookEnabled: boolean;
+  /** 実装拡張（v2.2・保護者判断）: てんすう・ランク・ラウンド・植物の成長を子ども画面に出す */
+  scoreEnabled: boolean;
+  /** 1ラウンドの問題数 */
+  roundLength: 5 | 10 | 15;
+  /** ホームから課題・段階を自分で選べるようにする（初期OFF＝モードをタップするとすぐ始まる） */
+  freeChoice: boolean;
 }
 
 export type GameEventType =
@@ -155,6 +163,8 @@ export interface Trial {
   /** 実装拡張: 試行の開始時刻（オフセット付きISO8601）と時間帯 */
   startedAt?: string;
   timeOfDay?: TimeOfDay;
+  /** 実装拡張（v2.2）: ラウンド（既定10問）の識別子。ラウンド外の試行にはない */
+  roundId?: string;
 }
 
 export interface CraftEntry {
