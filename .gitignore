@@ -3,5 +3,3 @@ dist/
 *.log
 .DS_Store
 
-# MediaPipe wasm is copied from node_modules on install (scripts/setup-mediapipe.mjs)
-public/mediapipe/wasm/

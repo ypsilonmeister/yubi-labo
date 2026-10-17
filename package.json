@@ -1,17 +1,15 @@
 {
-  "name": "yubi-labo",
+  "name": "math-craft",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "validate": "node scripts/validate-mazes.mjs src/data/mazes.json && node scripts/validate-kanji.mjs src/data/kanji.json && node scripts/validate-words.mjs src/data/words.json && node scripts/validate-jukugo.mjs src/data/jukugo.json src/data/kanji.json",
-    "preview": "vite preview",
-    "postinstall": "node scripts/setup-mediapipe.mjs"
+    "test": "vitest run",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "^0.10.35",
     "idb": "^8.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -21,6 +19,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.2",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^3.2.4"
   }
 }

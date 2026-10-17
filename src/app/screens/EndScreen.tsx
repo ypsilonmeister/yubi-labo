@@ -1,44 +1,56 @@
-import { useEffect, useState } from 'react';
-import { audioGuide } from '../../core/audio/AudioGuide';
-import { HighlightPlayer } from '../HighlightPlayer';
-import { selectHighlights, type Highlight } from '../../core/engine/highlights';
-import { getAllSessions, type SessionRecord } from '../../core/storage/db';
+// セッションの終わり。§8.5: 本人が望めば「どうだった？」を3択＋「こたえない」で記録できる（初期OFF）
 
-// 終了画面（SPEC §4.4.3）: 今日のハイライト再生 → ほめる音声 → 🌙で操作ロック。
-export function EndScreen({ session }: { session: SessionRecord | null }) {
-  const [highlights, setHighlights] = useState<Highlight[] | null>(null);
-  const [replayDone, setReplayDone] = useState(false);
+import { useState } from 'react';
+import type { Session } from '../../core/types';
 
-  useEffect(() => {
-    if (!session) {
-      setHighlights([]);
-      return;
-    }
-    void getAllSessions().then((all) => {
-      const history = all.filter((s) => s.id !== session.id && s.endedAt > 0);
-      setHighlights(selectHighlights(session, history, 2));
-    });
-  }, [session]);
-
-  useEffect(() => {
-    if (replayDone || (highlights !== null && highlights.length === 0)) {
-      audioGuide.speak('app.session.end');
-    }
-  }, [replayDone, highlights]);
-
-  if (highlights === null) return null;
-
-  if (highlights.length > 0 && !replayDone) {
+export function EndScreen({ askSelfReport, onReport, onAgain }: { askSelfReport: boolean; onReport: (r: NonNullable<Session['childSelfReport']>) => void; onAgain: () => void }) {
+  const [answered, setAnswered] = useState(!askSelfReport);
+  if (!answered)
     return (
-      <HighlightPlayer highlights={highlights} withIntro={false} onDone={() => setReplayDone(true)} />
-    );
-  }
-
-  return (
-    <div className="center-fill">
-      <div className="end-moon" aria-hidden="true">
-        🌙
+      <div className="screen center">
+        <h2>きょうは どうだった？</h2>
+        <div className="report-row">
+          {(
+            [
+              ['good', '😊', 'よかった'],
+              ['so_so', '🙂', 'ふつう'],
+              ['tough', '😮‍💨', 'たいへんだった'],
+            ] as const
+          ).map(([k, icon, label]) => (
+            <button
+              key={k}
+              type="button"
+              className="tile small"
+              onClick={() => {
+                onReport(k);
+                setAnswered(true);
+              }}
+            >
+              <span className="report-icon" aria-hidden>
+                {icon}
+              </span>
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="btn-soft"
+          onClick={() => {
+            onReport('no_answer');
+            setAnswered(true);
+          }}
+        >
+          こたえない
+        </button>
       </div>
+    );
+  return (
+    <div className="screen center">
+      <h2>またね</h2>
+      <button type="button" className="btn-soft" onClick={onAgain}>
+        はじめに もどる
+      </button>
     </div>
   );
 }
