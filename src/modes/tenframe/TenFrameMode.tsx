@@ -1,4 +1,4 @@
-// Mode C：10フレーム（スライムのへや）（§9.3）
+// Mode C：10フレーム（10の へや）（§9.3）。v2.4: スライムの形をやめ、四角いタイルと数字のふだにした（本人の希望・§20）
 // 2行×5列。空席は静的に強調（点滅しない）。10のまとまりを開く操作は「ひらく」と言い、破壊表現を使わない。
 // 各段階は単純な状態を1つずつ表示し、直前の状態を縮小表示で残す。途中停止・一手戻し・スロー再生に対応。
 
@@ -26,6 +26,7 @@ import {
   carryScript,
   complementScript,
   exploreAddScenes,
+  countWorld,
   exploreWorld,
   lerpWorld,
   pairPos,
@@ -36,37 +37,75 @@ import {
   type Step,
   type Target,
   type World,
+  zoneOf,
 } from './scenes';
 
 type S = Readonly<AccessibilitySettings>;
 
 // ---------- 描画 ----------
 
-function Slime({ b, s }: { b: Blob; s: S }) {
+/**
+ * 1つのタイル（v2.4: 本人の希望でスライムの形をやめ、四角いタイルにした）。
+ * 10 のまとまりは「10」のカード（中に 2行×5列 の目。数字なしの設定では目だけ）。
+ */
+function Tile({ b, s }: { b: Blob; s: S }) {
   if (b.opacity <= 0.01) return null;
-  const color = numberColor(b.tone, s.colorScheme);
   const { x, y, r } = b;
-  const body = `M${x - r} ${y + r * 0.7} Q${x - r} ${y - r} ${x} ${y - r} Q${x + r} ${y - r} ${x + r} ${y + r * 0.7} Z`;
-  const ink = inkOn(color);
+  if (b.king) {
+    const color = numberColor(10, s.colorScheme);
+    const ink = inkOn(color);
+    const w = r * 2.3;
+    const h = r * 2;
+    return (
+      <g opacity={b.opacity} pointerEvents="none">
+        <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={14} fill={color} stroke={OUTLINE} strokeWidth={4} />
+        {s.numberLabels && (
+          <text x={x} y={y - h / 2 + 52} textAnchor="middle" fontSize={50} fontWeight={800} fill={ink}>
+            10
+          </text>
+        )}
+        {Array.from({ length: 10 }, (_, i) => {
+          const p = pairPos(i, x - 36, s.numberLabels ? y + 22 : y - 9, 18, 18);
+          return <rect key={i} x={p.x - 6} y={p.y - 6} width={12} height={12} rx={2} fill={ink} opacity={0.55} />;
+        })}
+      </g>
+    );
+  }
+  const color = numberColor(b.tone, s.colorScheme);
+  const side = r * 1.7;
   return (
     <g opacity={b.opacity} pointerEvents="none">
-      <path d={body} fill={color} stroke={OUTLINE} strokeWidth={b.king ? 4 : 2.5} />
-      {r > 9 && (
-        <>
-          <circle cx={x - r * 0.33} cy={y - r * 0.15} r={r * 0.11} fill={ink} />
-          <circle cx={x + r * 0.33} cy={y - r * 0.15} r={r * 0.11} fill={ink} />
-        </>
-      )}
-      {b.king && (
-        <>
-          <path d={`M${x - 26} ${y - r - 2} L${x - 26} ${y - r - 26} L${x - 13} ${y - r - 12} L${x} ${y - r - 30} L${x + 13} ${y - r - 12} L${x + 26} ${y - r - 26} L${x + 26} ${y - r - 2} Z`} fill="#f6c343" stroke={OUTLINE} strokeWidth={3} />
-          {/* おなかに 2行×5列 の点: 10 のまとまりの構造を見えるままにする */}
-          {Array.from({ length: 10 }, (_, i) => {
-            const p = pairPos(i, x - 36, y + 8, 18, 18);
-            return <circle key={i} cx={p.x} cy={p.y} r={5} fill={ink} opacity={0.6} />;
-          })}
-        </>
-      )}
+      <rect x={x - side / 2} y={y - side / 2} width={side} height={side} rx={side * 0.16} fill={color} stroke={OUTLINE} strokeWidth={r > 30 ? 3 : 2} />
+    </g>
+  );
+}
+
+/** 数字のふだ（v2.4）。むれ・へやの数を大きく出す */
+function NumChip({ x, y, n, size = 34 }: { x: number; y: number; n: number; size?: number }) {
+  const w = size * (String(n).length * 0.62 + 0.7);
+  return (
+    <g pointerEvents="none">
+      <rect x={x} y={y} width={w} height={size * 1.25} rx={size * 0.3} fill="#fffaf0" stroke={OUTLINE} strokeWidth={2.5} />
+      <text x={x + w / 2} y={y + size * 0.98} textAnchor="middle" fontSize={size} fontWeight={800} fill="#3a3226">
+        {n}
+      </text>
+    </g>
+  );
+}
+
+/** へやごとの数のふだ。見えているむれの位置から置き場所を決める */
+function Chips({ world }: { world: World }) {
+  const c = countWorld(world);
+  const zoneMaxX = (z: keyof ReturnType<typeof countWorld>) => Math.max(...world.blobs.filter((b) => zoneOf(world, b) === z).map((b) => b.x + b.r), -Infinity);
+  const zoneMinY = (z: keyof ReturnType<typeof countWorld>) => Math.min(...world.blobs.filter((b) => zoneOf(world, b) === z).map((b) => b.y - b.r), Infinity);
+  const tens = c.kings * 10 + c.opened;
+  return (
+    <g>
+      <NumChip x={TENS.x + TENS.w - 70} y={TENS.y + 6} n={tens} size={28} />
+      <NumChip x={FRAME.x + 110} y={FRAME.y - 40} n={c.ones} size={28} />
+      {c.overflow > 0 && <NumChip x={W - 70} y={FRAME.y + 2 * FRAME.cell + 4} n={c.overflow} size={26} />}
+      {c.waiting > 0 && <NumChip x={Math.min(W - 70, zoneMaxX('waiting') + 12)} y={Math.max(300, zoneMinY('waiting') - 4)} n={c.waiting} size={26} />}
+      {c.inBus > 0 && <NumChip x={Math.min(W - 70, zoneMaxX('inBus') + 14)} y={BUS.y + 6} n={c.inBus} size={26} />}
     </g>
   );
 }
@@ -153,15 +192,21 @@ function Field({ world, s, emphasize, boxValue, showBox, glow, onTarget, thumb }
               ?
             </text>
           ) : (
-            Array.from({ length: boxValue }, (_, j) => <Slime key={j} b={{ id: `bx${j}`, ...boxPos(j), r: BOX_R, tone: boxValue, opacity: 1 }} s={s} />)
+            <>
+              {Array.from({ length: boxValue }, (_, j) => (
+                <Tile key={j} b={{ id: `bx${j}`, ...boxPos(j), r: BOX_R, tone: boxValue, opacity: 1 }} s={s} />
+              ))}
+              {s.numberLabels && <NumChip x={BOX.x + BOX.w - 72} y={BOX.y + 40} n={boxValue} />}
+            </>
           )}
         </g>
       )}
       <g className={successClass(s, !!glow)}>
         {world.blobs.map((b) => (
-          <Slime key={b.id} b={b} s={s} />
+          <Tile key={b.id} b={b} s={s} />
         ))}
       </g>
+      {s.numberLabels && !thumb && <Chips world={world} />}
       {/* 置き先（上に透明な面を重ねる） */}
       {onTarget && (
         <>
@@ -175,27 +220,39 @@ function Field({ world, s, emphasize, boxValue, showBox, glow, onTarget, thumb }
   );
 }
 
+/** 手札のむれ。数字ありの設定では大きな数字のふだ＋小さなタイルの並び、なしではタイルの並びだけ */
 function GroupIcon({ n, s }: { n: number; s: S }) {
   const cols = Math.ceil(n / 2);
   const color = numberColor(n, s.colorScheme);
-  return (
-    <svg width={cols * 22 + 6} height={50} viewBox={`-3 -3 ${cols * 22 + 6} 50`} aria-hidden>
+  const cell = s.numberLabels ? 10 : 20;
+  const tiles = (
+    <svg width={cols * (cell + 2) + 4} height={2 * (cell + 2) + 4} viewBox={`-2 -2 ${cols * (cell + 2) + 4} ${2 * (cell + 2) + 4}`} aria-hidden>
       {Array.from({ length: n }, (_, j) => {
-        const p = pairPos(j, 11, 12, 22, 22);
-        return <path key={j} d={`M${p.x - 9} ${p.y + 6} Q${p.x - 9} ${p.y - 9} ${p.x} ${p.y - 9} Q${p.x + 9} ${p.y - 9} ${p.x + 9} ${p.y + 6} Z`} fill={color} stroke={OUTLINE} strokeWidth={1.5} />;
+        const p = pairPos(j, 0, 0, cell + 2, cell + 2);
+        return <rect key={j} x={p.x} y={p.y} width={cell} height={cell} rx={2} fill={color} stroke={OUTLINE} strokeWidth={1.2} />;
       })}
     </svg>
   );
+  if (!s.numberLabels) return tiles;
+  return (
+    <span className="num-card">
+      <b>{n}</b>
+      {tiles}
+    </span>
+  );
 }
 
-/** ちぎる手札のスライム1匹 */
-function SlimeToken({ tone, s }: { tone: number; s: S }) {
+/** ちぎる手札のタイル1枚。数字ありの設定では、はじめから何枚目かの数字が書いてある（「ここまで k こ」） */
+function TileToken({ tone, k, s }: { tone: number; k: number; s: S }) {
   const color = numberColor(tone, s.colorScheme);
   return (
-    <svg width={40} height={40} viewBox="-20 -20 40 40" aria-hidden>
-      <path d="M-16 11 Q-16 -16 0 -16 Q16 -16 16 11 Z" fill={color} stroke={OUTLINE} strokeWidth={2} />
-      <circle cx={-5} cy={-3} r={2} fill={inkOn(color)} />
-      <circle cx={5} cy={-3} r={2} fill={inkOn(color)} />
+    <svg width={44} height={44} viewBox="-22 -22 44 44" aria-hidden>
+      <rect x={-19} y={-19} width={38} height={38} rx={6} fill={color} stroke={OUTLINE} strokeWidth={2} />
+      {s.numberLabels && (
+        <text x={0} y={8} textAnchor="middle" fontSize={22} fontWeight={800} fill={inkOn(color)}>
+          {k}
+        </text>
+      )}
     </svg>
   );
 }
@@ -208,7 +265,7 @@ function splitSource(core: TrialCore, target: Target): { n: number; tone: number
     const second = core.settings.carryFirstOperand === 'larger' ? Math.min(a, b) : b;
     return { n: second, tone: second, label: 'まっている むれ' };
   }
-  return { n: 9, tone: 1, label: 'スライム' };
+  return { n: 9, tone: 1, label: 'タイル' };
 }
 
 /** 決定点の前に、ちぎる手札と同じむれを場面から隠す（同じものが2か所に見えないように） */
@@ -217,7 +274,7 @@ function hideWaiting(w: World): World {
 }
 
 function groupChoices(values: number[], s: S): ChoiceItem[] {
-  return values.map((v, i) => ({ key: `g${i}-${v}`, value: v, label: 'スライムの むれ', node: <GroupIcon n={v} s={s} /> }));
+  return values.map((v, i) => ({ key: `g${i}-${v}`, value: v, label: `${v} の むれ`, node: <GroupIcon n={v} s={s} /> }));
 }
 
 function scriptFor(core: TrialCore): Script {
@@ -233,7 +290,7 @@ const PROMPT: Record<string, string> = {
   complement_D1: 'あいている ところに はいるのは どの むれかな',
   borrow_D1: 'バスの せきに のるのは どの むれかな',
   borrow_D2: 'のこりを あわせると どの むれに なるかな',
-  tapKing: '10の へやの キングを タップすると ひらくよ',
+  tapKing: '10の へやの 10の カードを タップすると ひらくよ',
   carry_predict: 'あふれて 1の へやに のこるのは どの むれかな',
   complement_predict: 'あいている ところに はいるのは どの むれかな',
   borrow_predict: 'さいごに 1の へやに のこるのは どの むれかな',
@@ -423,7 +480,7 @@ function ConstructTask({ core }: { core: TrialCore }) {
             key={`${idx}`}
             n={splitSource(core, decide.target).n}
             label={splitSource(core, decide.target).label}
-            token={() => <SlimeToken tone={splitSource(core, decide.target).tone} s={s} />}
+            token={(j) => <TileToken tone={splitSource(core, decide.target).tone} k={j + 1} s={s} />}
             snap={core.snap(decide.target)}
             onSelect={(k) => core.ctx.emit({ type: 'item_selected', payload: { split: k } })}
             onPick={(k) => void decideWith(k)}
@@ -655,7 +712,7 @@ function View({ bridge }: { bridge: ModeBridge }) {
 export const TenFrameMode = createReactPlugin(
   {
     id: 'mode_c_tenframe',
-    title: 'スライムの へや',
+    title: '10の へや',
     description: '2行×5列の10フレーム。空席を静的に示し、繰り上がりは「10をつくる」、繰り下がりは減加法（設定で減減法）で、分解・合体を1段階ずつ見せる。',
     supportedTasks: ['complement_10', 'carry_over', 'borrow'],
     supportedStrategies: ['make_ten', 'subtract_from_ten', 'subtract_subtract'],

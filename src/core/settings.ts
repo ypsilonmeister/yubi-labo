@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   fiveToken: false,
   directManipulation: true,
   rodGrid: true,
+  numberLabels: true,
 };
 
 export const DEFAULT_LEARNING: LearningSettings = {

@@ -93,21 +93,24 @@ export interface Counts {
   waiting: number;
 }
 
-export function countWorld(w: World): Counts {
-  const c: Counts = { kings: 0, opened: 0, ones: 0, overflow: 0, inBus: 0, waiting: 0 };
+/** 見えている1つのむれ（ブロブ）がどこにいるか。見えていなければ null。10 のまとまりは 'kings' */
+export function zoneOf(w: World, b: Blob): keyof Counts | null {
+  if (b.opacity < 0.5) return null;
+  if (b.king) return 'kings';
   const busX0 = BUS.x + (w.bus?.dx ?? 0);
   const busW = w.bus ? Math.ceil(w.bus.seats / 2) * WAIT.dx + 20 : 0;
+  if (b.x >= TENS.x && b.x <= TENS.x + TENS.w && b.y >= TENS.y && b.y <= TENS.y + TENS.h) return 'opened';
+  if (b.x >= FRAME.x && b.x <= FRAME.x + 5 * FRAME.cell && b.y >= FRAME.y && b.y <= FRAME.y + 2 * FRAME.cell) return 'ones';
+  if (b.x > FRAME.x + 5 * FRAME.cell && b.y < FRAME.y + 2 * FRAME.cell + 20) return 'overflow';
+  if (w.bus && b.y > BUS.y && b.x >= busX0 && b.x <= busX0 + busW) return 'inBus';
+  return 'waiting';
+}
+
+export function countWorld(w: World): Counts {
+  const c: Counts = { kings: 0, opened: 0, ones: 0, overflow: 0, inBus: 0, waiting: 0 };
   for (const b of w.blobs) {
-    if (b.opacity < 0.5) continue;
-    if (b.king) {
-      c.kings++;
-      continue;
-    }
-    if (b.x >= TENS.x && b.x <= TENS.x + TENS.w && b.y >= TENS.y && b.y <= TENS.y + TENS.h) c.opened++;
-    else if (b.x >= FRAME.x && b.x <= FRAME.x + 5 * FRAME.cell && b.y >= FRAME.y && b.y <= FRAME.y + 2 * FRAME.cell) c.ones++;
-    else if (b.x > FRAME.x + 5 * FRAME.cell && b.y < FRAME.y + 2 * FRAME.cell + 20) c.overflow++;
-    else if (w.bus && b.y > BUS.y && b.x >= busX0 && b.x <= busX0 + busW) c.inBus++;
-    else c.waiting++;
+    const z = zoneOf(w, b);
+    if (z) c[z]++;
   }
   return c;
 }

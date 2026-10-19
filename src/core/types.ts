@@ -65,6 +65,8 @@ export interface AccessibilitySettings {
   directManipulation: boolean;
   /** 実装拡張（v2.2・§18.6）: いろぼうに目盛り線と1ずつの区切り（5は太く）を描く */
   rodGrid: boolean;
+  /** 実装拡張（v2.4・§20・本人の希望）: むれ・へや・手札に数字のふだを出す */
+  numberLabels: boolean;
 }
 
 // 実装拡張: 出題・分析まわりの保護者設定（AccessibilitySettings とは別に保存）
