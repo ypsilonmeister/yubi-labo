@@ -79,7 +79,7 @@ function Seesaw(props: { svgRef?: React.Ref<SVGSVGElement>; left: number[]; righ
 
 /**
  * 手札の重り。scale（場の SVG の表示倍率）があれば、皿の上の重りとまったく同じ長さ・太さ・区切りで描く（v2.4）。
- * 自由探索の手札（20こ並ぶ）は小さめの決まった大きさ。
+ * scale がまだ測れていない（0）ときは小さめの決まった大きさ。
  */
 function WeightIcon({ n, s, scale = 0 }: { n: number; s: S; scale?: number }) {
   const u = scale > 0 ? UNIT * scale : 9;
@@ -201,8 +201,10 @@ function ExploreTask({ core }: { core: TrialCore }) {
   const [history, setHistory] = useState<{ left: number[]; right: number[] }[]>([]);
   const tilt = useTilt(core, tiltOf([8], []));
   const [found, setFound] = useState(false);
-  const pickL = usePicker(core);
-  const pickR = usePicker(core);
+  // v2.4: 手札は1組（場と同じ大きさ）。どちらの皿に乗せるかは、皿をタップするか「ひだり／みぎ」で選ぶ
+  const [target, setTarget] = useState<Side>('R');
+  const pick = usePicker(core);
+  const field = useFieldScale(W);
   const palette = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   const apply = async (l: number[], r: number[]) => {
@@ -240,53 +242,57 @@ function ExploreTask({ core }: { core: TrialCore }) {
     void tilt.to(tiltOf(last.left, last.right));
   });
 
-  const tray = (side: Side, pick: ReturnType<typeof usePicker>) => {
-    const items = weightItems(palette, s, side).map((it) => ({ ...it, disabled: (side === 'L' ? left : right).length >= PAN_MAX_WEIGHTS }));
-    return (
-      <div className="seesaw-side">
-        <span className="seesaw-side-label" aria-hidden>
-          {side === 'L' ? '◀ ひだり' : 'みぎ ▶'}
-        </span>
-        <ChoiceTray
-          items={items}
-          selected={pick.selected}
-          onTap={(it) => pick.toggle(it.key, it.value)}
-          drag={s.inputMethod === 'drag'}
-          snap={core.snap(side)}
-          onDrop={(it, id) => {
-            if (id !== side) return;
-            pick.clear();
-            add(side, it.value);
-          }}
-        />
-      </div>
-    );
-  };
+  const full = (target === 'L' ? left : right).length >= PAN_MAX_WEIGHTS;
+  const items = weightItems(palette, s, 'p', field.scale).map((it) => ({ ...it, disabled: full }));
+  const sideButton = (side: Side) => (
+    <button type="button" className={`btn-soft side-pick${target === side ? ' on' : ''}`} aria-pressed={target === side} onClick={() => setTarget(side)}>
+      {side === 'L' ? '◀ ひだりへ' : 'みぎへ ▶'}
+    </button>
+  );
 
   return (
     <ModeLayout
-      prompt={found ? 'つりあった！ ほかの くみあわせも ためして みよう' : 'さらに おもりを のせて、つりあう くみあわせを さがそう（のせた おもりは タップで おろせる）'}
+      prompt={found ? 'つりあった！ ほかの くみあわせも ためして みよう' : 'のせる さらを えらんで おもりを タップ。つりあう くみあわせを さがそう（のせた おもりは タップで おろせる）'}
       field={
         <Seesaw
+          svgRef={field.ref}
           left={left}
           right={right}
           angle={tilt.angle}
           s={s}
+          strong={target}
           onRemove={remove}
           glow={found}
           onPan={(side) => {
-            const p = side === 'L' ? pickL : pickR;
-            const v = p.selected ? Number(p.selected.split('-')[1]) : null;
+            // 皿をタップすると、そちらに乗せるように切りかわる（選んだ重りがあれば、そのまま乗せる）
+            setTarget(side);
+            const v = pick.selected ? Number(pick.selected.split('-')[1]) : null;
             if (!v) return;
-            p.clear();
+            pick.clear();
             add(side, v);
           }}
         />
       }
       tray={
-        <div className="seesaw-trays">
-          {tray('L', pickL)}
-          {tray('R', pickR)}
+        <div className="lab-tray">
+          <div className="lab-row">
+            {sideButton('L')}
+            {sideButton('R')}
+          </div>
+          <div className="weight-palette">
+            <ChoiceTray
+              items={items}
+              selected={pick.selected}
+              onTap={(it) => pick.toggle(it.key, it.value)}
+              drag={s.inputMethod === 'drag'}
+              snap={core.snap(target)}
+              onDrop={(it, id) => {
+                if (id !== 'L' && id !== 'R') return;
+                pick.clear();
+                add(id, it.value);
+              }}
+            />
+          </div>
         </div>
       }
     />
