@@ -5,6 +5,7 @@ import { RodsMode } from './rods/RodsMode';
 import { TenFrameMode } from './tenframe/TenFrameMode';
 import { ExchangeMode } from './exchange/ExchangeMode';
 import { TilesMode } from './tiles/TilesMode';
+import { SeesawMode } from './seesaw/SeesawMode';
 
 let done = false;
 export function registerModes() {
@@ -16,4 +17,5 @@ export function registerModes() {
   GameRegistry.register(ExchangeMode);
   // v2.3 じっけんラボ（§19）
   GameRegistry.register(TilesMode);
+  GameRegistry.register(SeesawMode);
 }

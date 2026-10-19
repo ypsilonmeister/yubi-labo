@@ -29,3 +29,36 @@ describe('v2.3 タイル・リアクター', () => {
     expect(isRectangle(4, 4)).toBe(false); // 1列だけ
   });
 });
+
+import { balanceParts, isDiscovery, leftWeights, MAX_TILT, tiltOf } from '../modes/seesaw/physics';
+import { balancePairs, buildQuestion, decisionValue, validateQuestion } from '../core/engine/questions';
+import { DEFAULT_LEARNING, DEFAULT_SETTINGS } from '../core/settings';
+
+describe('v2.3 シーソー', () => {
+  it('釣り合えば水平、重い方へ傾き、傾きには上限がある', () => {
+    expect(tiltOf([8], [5, 3])).toBe(0);
+    expect(tiltOf([8], [5])).toBeLessThan(0);
+    expect(tiltOf([5], [8])).toBeGreaterThan(0);
+    expect(Math.abs(tiltOf([1], [10, 10]))).toBe(MAX_TILT);
+  });
+
+  it('本課題: 全組み合わせで、正しい重りだけが釣り合い、範囲検証を通る', () => {
+    for (const [t, c] of balancePairs()) {
+      const q = buildQuestion('balance', [t, c], 'mode_f_seesaw', 'construct', DEFAULT_SETTINGS, DEFAULT_LEARNING);
+      expect(validateQuestion(q)).toEqual([]);
+      const left = leftWeights(t);
+      expect(left.every((w) => w >= 1 && w <= 10)).toBe(true);
+      const x = decisionValue(q);
+      expect(tiltOf(left, [c, x])).toBe(0);
+      for (const d of q.distractors) expect(tiltOf(left, [c, d])).not.toBe(0);
+    }
+  });
+
+  it('図鑑の釣り合いは左右を入れかえても同じ記録', () => {
+    expect(balanceParts([8], [5, 3])).toEqual(balanceParts([3, 5], [8]));
+    expect(balanceParts([8], [5, 3])).toEqual([8, 0, 5, 3]);
+    expect(isDiscovery([8], [5, 3])).toBe(true);
+    expect(isDiscovery([4], [4])).toBe(false);
+    expect(isDiscovery([4], [])).toBe(false);
+  });
+});

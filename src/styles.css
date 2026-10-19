@@ -1450,3 +1450,35 @@ button:disabled {
   justify-content: center;
   opacity: 0.85;
 }
+
+/* v2.3: シーソーの左右の手札 */
+.seesaw-trays {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.seesaw-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 300px;
+  max-width: 470px;
+}
+
+.seesaw-side-label {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.seesaw-side .choice-tray {
+  gap: 6px;
+}
+
+.seesaw-side .choice {
+  min-width: 56px;
+  min-height: 52px;
+  padding: 4px 6px;
+}
