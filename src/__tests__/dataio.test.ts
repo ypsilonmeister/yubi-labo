@@ -120,9 +120,10 @@ describe('受け入れテスト18: 時刻', () => {
 
 describe('v2.2 の設定（古いデータの読み込み）', () => {
   it('v2.1 の設定には新しい項目がないので、初期値で補う', () => {
-    const settings = Object.fromEntries(Object.entries(DEFAULT_SETTINGS).filter(([k]) => k !== 'directManipulation'));
+    const settings = Object.fromEntries(Object.entries(DEFAULT_SETTINGS).filter(([k]) => k !== 'directManipulation' && k !== 'rodGrid'));
     const p = withDefaults({ playerLabel: 'x', settings, learning: { choiceCount: 3 } } as never);
     expect(p.settings.directManipulation).toBe(true);
+    expect(p.settings.rodGrid).toBe(true);
     expect(p.learning).toMatchObject({ scoreEnabled: true, roundLength: 10, freeChoice: false, choiceCount: 3 });
   });
 

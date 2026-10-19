@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   borrowStrategy: 'subtract_from_ten',
   fiveToken: false,
   directManipulation: true,
+  rodGrid: true,
 };
 
 export const DEFAULT_LEARNING: LearningSettings = {

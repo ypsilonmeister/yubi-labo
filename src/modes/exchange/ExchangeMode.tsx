@@ -99,39 +99,72 @@ export function CoinShape({ c, s }: { c: Pick<Coin, 'value' | 'x' | 'y' | 'r' | 
   );
 }
 
-function purseCoins(p: Purse): CoinValue[] {
-  return [...Array(p[100]).fill(100), ...Array(p[10]).fill(10), ...Array(p[5]).fill(5), ...Array(p[1]).fill(1)];
+const DENOMS: CoinValue[] = [100, 10, 5, 1];
+
+/** 金種ごとの列の幅（枚数）。手札どうしで列がそろうよう、選択肢の中の最大枚数で決める */
+type Columns = Partial<Record<CoinValue, number>>;
+
+function columnsOf(purses: Purse[]): Columns {
+  const c: Columns = {};
+  for (const v of DENOMS) {
+    const max = Math.max(0, ...purses.map((p) => p[v]));
+    if (max > 0) c[v] = max;
+  }
+  return c;
 }
 
-/** 財布を枠の中に小さく並べる */
+/**
+ * 財布を金種ごとの列に分けて並べる（v2.2）。大きい金種が左。各列は 2行（ペアの並び）。
+ * 列の幅は cols で固定し、金種のあいだに すきま と うすい仕切り線 をおく（10 と 1 が混ざって見えないように）。
+ */
+function PurseColumns({ p, cols, s, x0, y0, d, r }: { p: Purse; cols: Columns; s: S; x0: number; y0: number; d: number; r: number }) {
+  const gap = d * 0.7;
+  let x = x0;
+  const out: ReactNode[] = [];
+  DENOMS.forEach((v) => {
+    const max = cols[v];
+    if (!max) return;
+    const w = Math.ceil(max / 2) * d;
+    if (x > x0) out.push(<line key={`sep${v}`} x1={x - gap / 2} x2={x - gap / 2} y1={y0 - r} y2={y0 + d + r} stroke={SLOT_STROKE} strokeWidth={1.5} strokeDasharray="4 4" />);
+    for (let i = 0; i < p[v]; i++) out.push(<CoinShape key={`${v}-${i}`} c={{ value: v, x: x + d / 2 + Math.floor(i / 2) * d, y: y0 + (i % 2) * d, r, opacity: 1 }} s={s} />);
+    x += w + gap;
+  });
+  return <g>{out}</g>;
+}
+
+function columnsWidth(cols: Columns, d: number): number {
+  const groups = DENOMS.filter((v) => cols[v]);
+  return groups.reduce((w, v) => w + Math.ceil(cols[v]! / 2) * d, 0) + Math.max(0, groups.length - 1) * d * 0.7;
+}
+
+/** 財布を枠の中に、金種ごとの列で並べる */
 function PurseInRect({ p, rect, s, opacity = 1 }: { p: Purse; rect: Rect; s: S; opacity?: number }) {
-  const list = purseCoins(p);
-  const per = Math.max(3, Math.ceil(list.length / 2));
-  const dx = Math.min(44, (rect.w - 30) / per);
-  const r = Math.min(20, dx / 2 - 1);
+  const cols = columnsOf([p]);
+  const d0 = 44;
+  const w0 = columnsWidth(cols, d0);
+  const d = Math.min(d0, (d0 * (rect.w - 24)) / Math.max(1, w0));
+  const r = Math.min(20, d / 2 - 1);
+  const x0 = rect.x + (rect.w - columnsWidth(cols, d)) / 2;
   return (
     <g opacity={opacity}>
-      {list.map((v, i) => (
-        <CoinShape key={i} c={{ value: v, x: rect.x + 15 + dx / 2 + (i % per) * dx, y: rect.y + rect.h / 2 - 24 + Math.floor(i / per) * 50, r, opacity: 1 }} s={s} />
-      ))}
+      <PurseColumns p={p} cols={cols} s={s} x0={x0} y0={rect.y + rect.h / 2 - d / 2} d={d} r={r} />
     </g>
   );
 }
 
-function PurseIcon({ p, s }: { p: Purse; s: S }) {
-  const list = purseCoins(p);
-  const per = Math.max(1, Math.ceil(list.length / 2));
+function PurseIcon({ p, cols, s }: { p: Purse; cols: Columns; s: S }) {
+  const d = 26;
+  const w = columnsWidth(cols, d);
   return (
-    <svg width={per * 26 + 6} height={56} viewBox={`-3 -3 ${per * 26 + 6} 56`} aria-hidden>
-      {list.map((v, i) => (
-        <CoinShape key={i} c={{ value: v, x: 13 + (i % per) * 26, y: 12 + Math.floor(i / per) * 26, r: 11.5, opacity: 1 }} s={s} />
-      ))}
+    <svg width={w + 6} height={d * 2 + 6} viewBox={`-3 -3 ${w + 6} ${d * 2 + 6}`} aria-hidden>
+      <PurseColumns p={p} cols={cols} s={s} x0={0} y0={d / 2} d={d} r={11.5} />
     </svg>
   );
 }
 
 function purseChoices(values: number[], toPurse: (v: number) => Purse, s: S): ChoiceItem[] {
-  return values.map((v, i) => ({ key: `c${i}-${v}`, value: v, label: 'コイン', node: <PurseIcon p={toPurse(v)} s={s} /> }));
+  const cols = columnsOf(values.map(toPurse));
+  return values.map((v, i) => ({ key: `c${i}-${v}`, value: v, label: 'コイン', node: <PurseIcon p={toPurse(v)} cols={cols} s={s} /> }));
 }
 
 /** 交換のルールを絵で示す（§9.4） */

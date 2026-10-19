@@ -49,6 +49,8 @@ export interface AccessibilitySettings {
   fiveToken: boolean;
   /** 実装拡張（v2.2）: 手札で選んで置き先をタップする代わりに、1タップで置き先へ吸い込む／ちぎる位置をタップする */
   directManipulation: boolean;
+  /** 実装拡張（v2.2・§18.6）: いろぼうに目盛り線と1ずつの区切り（5は太く）を描く */
+  rodGrid: boolean;
 }
 
 // 実装拡張: 出題・分析まわりの保護者設定（AccessibilitySettings とは別に保存）

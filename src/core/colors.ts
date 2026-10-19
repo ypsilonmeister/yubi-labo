@@ -58,3 +58,5 @@ export const PLANT = { pot: '#c8794a', potRim: '#a85f36', soil: '#6b4a32', stem:
 /** 位取りの区画の背景（10の位・1の位）。D の両替と C の部屋で共通に使う */
 export const PLACE_BG = { tens: '#dceaf7', ones: '#fdf0d5', machine: '#eef3e2' };
 export const PLACE_STROKE = { tens: '#5b86b0', ones: '#c99a3e', machine: '#7f9a5a' };
+/** v2.2: いろぼうの背景の目盛り（5のまとまりの帯・1ずつの線・5と10の線） */
+export const ROD_GRID = { band: '#f1ead9', one: '#c9bca5', five: '#8c7c64' };
