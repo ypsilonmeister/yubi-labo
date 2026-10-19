@@ -25,9 +25,11 @@ interface Props {
   disabled?: boolean;
   /** v2.2: ワンタップで置き先へ（ダイレクト操作） */
   snap?: Snap;
+  /** v2.2: 縦に並べて左端をそろえる（長さをくらべる手札） */
+  stack?: boolean;
 }
 
-export function ChoiceTray({ items, selected, onTap, drag, onDrop, demoKey, disabled, snap }: Props) {
+export function ChoiceTray({ items, selected, onTap, drag, onDrop, demoKey, disabled, snap, stack }: Props) {
   const [ghost, setGhost] = useState<{ item: ChoiceItem; x: number; y: number } | null>(null);
   const [flying, setFlying] = useState<string | null>(null);
 
@@ -63,7 +65,7 @@ export function ChoiceTray({ items, selected, onTap, drag, onDrop, demoKey, disa
   };
 
   return (
-    <div className="choice-tray" role="group">
+    <div className={stack ? 'choice-tray stack' : 'choice-tray'} role="group">
       {items.map((it) => (
         <button
           key={it.key}

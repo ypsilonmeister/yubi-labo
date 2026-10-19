@@ -35,6 +35,15 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
         return [`10 を ${p.split[0]} と ${p.split[1]} に わける`, `${p.split[0]} を とる`, `${p.split[1]} と ${p.ones} で ${p.result}`, `${a} − ${b} = ${a - b}`];
       return [`${b} を ${p.split[0]} と ${p.split[1]} に わける`, `${p.split[0]} を とる`, `10 から ${p.split[1]} を とって ${p.result}`, `${a} − ${b} = ${a - b}`];
     }
+    case 'balance': {
+      // v2.3: 左の重りは 10 と のこり（10以下なら1つ）
+      const left = a > 10 ? `10 + ${a - 10}` : `${a}`;
+      return revealed ? [`${left} = ${b} + ${a - b}`] : [`${left} = ${b} + ？`];
+    }
+    case 'arrays':
+    case 'doubling':
+    case 'period':
+      return [];
   }
 }
 

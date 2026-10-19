@@ -4,7 +4,7 @@ import type { GameModePlugin, LearningStage, ModeId, TaskCategory } from './type
 
 const REQUIRED_METHODS = ['mount', 'loadQuestion', 'showHint', 'undo', 'pause', 'resume', 'applySettings', 'destroy', 'stagesFor'] as const;
 const STAGES: LearningStage[] = ['explore', 'observe', 'predict', 'construct', 'transfer', 'revisit'];
-const TASKS: TaskCategory[] = ['subitizing_678', 'numeral_quantity', 'synthesis_5', 'complement_10', 'carry_over', 'borrow'];
+const TASKS: TaskCategory[] = ['subitizing_678', 'numeral_quantity', 'synthesis_5', 'complement_10', 'carry_over', 'borrow', 'arrays', 'balance', 'doubling', 'period'];
 
 class Registry {
   private plugins = new Map<ModeId, GameModePlugin>();

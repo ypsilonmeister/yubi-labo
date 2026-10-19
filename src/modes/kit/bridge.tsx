@@ -53,6 +53,7 @@ export interface PluginMeta {
   supportedTasks: TaskCategory[];
   supportedStrategies: Strategy[];
   stages: Partial<Record<TaskCategory, LearningStage[]>>;
+  group?: 'core' | 'lab';
 }
 
 export function createReactPlugin(meta: PluginMeta, View: ComponentType<{ bridge: ModeBridge }>): GameModePlugin {
@@ -69,6 +70,7 @@ export function createReactPlugin(meta: PluginMeta, View: ComponentType<{ bridge
     supportedStages: [...stageSet],
     supportedStrategies: meta.supportedStrategies,
     stagesFor: (t) => meta.stages[t] ?? [],
+    group: meta.group ?? 'core',
     mount(container, context) {
       bridge = new ModeBridge(context.settings);
       bridge.ctx = context;

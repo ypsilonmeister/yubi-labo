@@ -58,3 +58,9 @@ export const PLANT = { pot: '#c8794a', potRim: '#a85f36', soil: '#6b4a32', stem:
 /** 位取りの区画の背景（10の位・1の位）。D の両替と C の部屋で共通に使う */
 export const PLACE_BG = { tens: '#dceaf7', ones: '#fdf0d5', machine: '#eef3e2' };
 export const PLACE_STROKE = { tens: '#5b86b0', ones: '#c99a3e', machine: '#7f9a5a' };
+/** v2.2: いろぼうの背景の目盛り（5のまとまりの帯・1ずつの線・5と10の線） */
+export const ROD_GRID = { band: '#f1ead9', one: '#c9bca5', five: '#8c7c64' };
+/** v2.3 タイル・リアクター（数の色とは別系統。タイルは1色、長方形ができたら縁を光らせる、素数の石は別の色） */
+export const TILE = { fill: '#9cc3e4', stroke: '#4f7ea8', glow: '#e0a63a', empty: '#f3ecdf', prime: '#b48ad6', primeStroke: '#6e4a9e' };
+/** v2.3 スープの材料（色に加えて模様でも見分ける: なし・点・しま・なみ） */
+export const SOUP = { liquids: ['#f4a6a6', '#9cc3e4', '#b7d98b', '#f6d27a'] };

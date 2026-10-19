@@ -1,5 +1,7 @@
 // Mode B：カラーロッド（§9.2）
-// 目盛りなしの色棒。長さの単位倍率は全問で一定（10本分が中央フレームの幅に収まる最大値）。
+// 色棒。長さの単位倍率は全問で一定（10本分が中央フレームの幅に収まる最大値）。
+// v2.2（§18.6・保護者の判断）: rodGrid が ON なら、背景に1ずつの目盛り線（5と10は太く、5のまとまりごとに色の帯）と、
+// 棒の中に1ずつの区切り（5のところは太く）を描く。数字は書かない。
 // 比較する棒は左端をそろえ、長さの終点を静的な枠で示す。誤答は、はみ出す／足りない様子で示す。
 
 import { useMemo, useState } from 'react';
@@ -7,7 +9,7 @@ import { createReactPlugin, useBridge, type ModeBridge } from '../kit/bridge';
 import { useTrialCore, usePicker, type TrialCore } from '../kit/useTrialCore';
 import { ChoiceTray, type ChoiceItem } from '../kit/ChoiceTray';
 import { HistoryStrip, ModeLayout, Sparkles, StepControls, successClass } from '../kit/ui';
-import { numberColor, OUTLINE, SLOT_FILL, SLOT_STROKE, SLOT_STROKE_STRONG } from '../../core/colors';
+import { numberColor, inkOn, OUTLINE, ROD_GRID, SLOT_FILL, SLOT_STROKE, SLOT_STROKE_STRONG } from '../../core/colors';
 import { choicesOf, decisionValue } from '../../core/engine/questions';
 import { narrowToTwo } from '../../core/math/choices';
 import type { AccessibilitySettings } from '../../core/types';
@@ -29,21 +31,50 @@ interface RodPose {
   opacity?: number;
 }
 
-function Rod({ p, s, className }: { p: RodPose; s: S; className?: string }) {
+/** 棒の中の区切り（1ずつ。5のところは太く）。棒の色の上で見える濃さにする */
+function RodSegments({ n, x, y, w, h, color }: { n: number; x: number; y: number; w: number; h: number; color: string }) {
+  const ink = inkOn(color);
   return (
-    <rect
-      x={p.x}
-      y={p.y}
-      width={p.value * UNIT}
-      height={RH}
-      rx={8}
-      fill={numberColor(p.value, s.colorScheme)}
-      stroke={OUTLINE}
-      strokeWidth={3}
-      opacity={p.opacity ?? 1}
-      className={className}
-      pointerEvents="none"
-    />
+    <g pointerEvents="none">
+      {Array.from({ length: n - 1 }, (_, i) => {
+        const k = i + 1;
+        const lx = x + (w / n) * k;
+        const five = k % 5 === 0;
+        return <line key={k} x1={lx} x2={lx} y1={y + (five ? 2 : h * 0.22)} y2={y + h - (five ? 2 : h * 0.22)} stroke={ink} strokeWidth={five ? 4 : 2} opacity={five ? 0.75 : 0.4} />;
+      })}
+    </g>
+  );
+}
+
+function Rod({ p, s, className }: { p: RodPose; s: S; className?: string }) {
+  const color = numberColor(p.value, s.colorScheme);
+  return (
+    <g opacity={p.opacity ?? 1} className={className} pointerEvents="none">
+      <rect x={p.x} y={p.y} width={p.value * UNIT} height={RH} rx={8} fill={color} stroke={OUTLINE} strokeWidth={3} />
+      {s.rodGrid && <RodSegments n={p.value} x={p.x} y={p.y} w={p.value * UNIT} h={RH} color={color} />}
+    </g>
+  );
+}
+
+/** 背景の目盛り: 1ずつの細い線、5と10は太い線、5のまとまりごとに色の帯。数字は書かない */
+function RodGrid({ s, y0 = 18, y1 = H - 18 }: { s: S; y0?: number; y1?: number }) {
+  if (!s.rodGrid) return null;
+  return (
+    <g pointerEvents="none">
+      <rect x={X0} y={y0} width={5 * UNIT} height={y1 - y0} fill={ROD_GRID.band} />
+      {Array.from({ length: 11 }, (_, i) => {
+        const x = X0 + i * UNIT;
+        const five = i % 5 === 0;
+        return <line key={i} x1={x} x2={x} y1={y0} y2={y1} stroke={five ? ROD_GRID.five : ROD_GRID.one} strokeWidth={five ? 3 : 1.5} strokeDasharray={five ? undefined : '6 6'} />;
+      })}
+      {/* 下のものさし: 目盛りだけ（5と10は長く） */}
+      {Array.from({ length: 11 }, (_, i) => {
+        const x = X0 + i * UNIT;
+        const five = i % 5 === 0;
+        return <line key={`t${i}`} x1={x} x2={x} y1={y1 - (five ? 16 : 9)} y2={y1} stroke={ROD_GRID.five} strokeWidth={five ? 4 : 2.5} />;
+      })}
+      <line x1={X0} x2={X0 + 10 * UNIT} y1={y1} y2={y1} stroke={ROD_GRID.five} strokeWidth={2.5} />
+    </g>
   );
 }
 
@@ -67,10 +98,12 @@ function Frame({ length, y, strong, over }: { length: number; y: number; strong?
 }
 
 function RodIcon({ n, s }: { n: number; s: S }) {
-  const u = 13;
+  const u = 16;
+  const color = numberColor(n, s.colorScheme);
   return (
-    <svg width={n * u + 6} height={26} viewBox={`-3 -3 ${n * u + 6} 26`} aria-hidden>
-      <rect x={0} y={0} width={n * u} height={20} rx={4} fill={numberColor(n, s.colorScheme)} stroke={OUTLINE} strokeWidth={2} />
+    <svg width={n * u + 6} height={30} viewBox={`-3 -3 ${n * u + 6} 30`} aria-hidden>
+      <rect x={0} y={0} width={n * u} height={24} rx={4} fill={color} stroke={OUTLINE} strokeWidth={2} />
+      {s.rodGrid && <RodSegments n={n} x={0} y={0} w={n * u} h={24} color={color} />}
     </svg>
   );
 }
@@ -144,6 +177,7 @@ function IdentifyTask({ core }: { core: TrialCore }) {
       prompt="わくと おなじ ながさの ぼうは どれかな"
       field={
         <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+          <RodGrid s={s} />
           <DropArea onTap={() => place(items.find((i) => i.key === pick.selected))} />
           <Frame length={n} y={y} strong={core.hintLevel >= 1} />
           {placed !== null && <Rod p={{ key: 'p', value: placed, x: X0, y }} s={s} className={successClass(s, ok)} />}
@@ -158,6 +192,7 @@ function IdentifyTask({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          stack={s.rodGrid}
           snap={core.snap('slot')}
           onDrop={(it) => place(it)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === n)?.key : null}
@@ -230,6 +265,7 @@ function ComposeTask({ core }: { core: TrialCore }) {
       prompt={q.taskType === 'complement_10' ? '10の ながさに なるように、すきまに はいる ぼうは どれかな' : 'すきまに ぴったり はいる ぼうは どれかな'}
       field={
         <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+          <RodGrid s={s} />
           <DropArea onTap={() => void place(items.find((i) => i.key === pick.selected))} />
           <Frame length={total} y={y} strong={core.hintLevel >= 1} />
           {ok ? (
@@ -259,6 +295,7 @@ function ComposeTask({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          stack={s.rodGrid}
           snap={core.snap('slot')}
           onDrop={(it) => void place(it)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === need)?.key : null}
@@ -341,6 +378,7 @@ function PredictTask({ core }: { core: TrialCore }) {
       prompt="つないだ ながさと おなじ ぼうは どれかな"
       field={
         <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+          <RodGrid s={s} />
           <DropArea onTap={() => void place(items.find((i) => i.key === pick.selected))} />
           {merged ? (
             <Rod p={{ key: 'm', value: a + b, x: X0, y: y1 }} s={s} className={successClass(s, pred === answer)} />
@@ -368,6 +406,7 @@ function PredictTask({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          stack={s.rodGrid}
           snap={core.snap('slot')}
           onDrop={(it) => void place(it)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === answer)?.key : null}
@@ -405,6 +444,7 @@ function ObserveTask({ core }: { core: TrialCore }) {
       prompt="「つぎ」を おすと うごくよ"
       field={
         <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+          <RodGrid s={s} />
           <line x1={X0} x2={X0} y1={40} y2={280} stroke={SLOT_STROKE} strokeWidth={4} />
           {rods.map((p) => (
             <Rod key={p.key} p={p} s={s} className={successClass(s, p.key === 'm')} />
@@ -452,6 +492,7 @@ function ExploreTask({ core }: { core: TrialCore }) {
       prompt="ぼうを つないで、おなじ ながさの 1ぽんと くらべて みよう"
       field={
         <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+          <RodGrid s={s} />
           <rect data-drop="row" x={X0} y={y1} width={10 * UNIT} height={RH} rx={8} fill="#f6f1e6" stroke={SLOT_STROKE} strokeWidth={3} strokeDasharray="10 7" onClick={() => add(items.find((i) => i.key === pick.selected))} style={{ cursor: 'pointer' }} />
           {row.map((v, i) => {
             const p = { key: String(i), value: v, x, y: y1 };

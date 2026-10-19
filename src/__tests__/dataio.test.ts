@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anonymize, emptyAppData, withDefaults, eventsCsv, mergeData, migrateV1, previewImport, sessionsCsv, toJstIso, trialsCsv, validateAppData } from '../core/storage/dataio';
+import { anonymize, craftKey, emptyAppData, mergeCraft, withDefaults, eventsCsv, mergeData, migrateV1, previewImport, sessionsCsv, toJstIso, trialsCsv, validateAppData } from '../core/storage/dataio';
 import { buildQuestion } from '../core/engine/questions';
 import { DEFAULT_LEARNING, DEFAULT_SETTINGS } from '../core/settings';
 import type { AppData } from '../core/types';
@@ -120,9 +120,10 @@ describe('受け入れテスト18: 時刻', () => {
 
 describe('v2.2 の設定（古いデータの読み込み）', () => {
   it('v2.1 の設定には新しい項目がないので、初期値で補う', () => {
-    const settings = Object.fromEntries(Object.entries(DEFAULT_SETTINGS).filter(([k]) => k !== 'directManipulation'));
+    const settings = Object.fromEntries(Object.entries(DEFAULT_SETTINGS).filter(([k]) => k !== 'directManipulation' && k !== 'rodGrid'));
     const p = withDefaults({ playerLabel: 'x', settings, learning: { choiceCount: 3 } } as never);
     expect(p.settings.directManipulation).toBe(true);
+    expect(p.settings.rodGrid).toBe(true);
     expect(p.learning).toMatchObject({ scoreEnabled: true, roundLength: 10, freeChoice: false, choiceCount: 3 });
   });
 
@@ -131,5 +132,21 @@ describe('v2.2 の設定（古いデータの読み込み）', () => {
     d.sessions[0].trials[0].roundId = 'r-1';
     expect(validateAppData(d)).toEqual([]);
     expect(anonymize(d).sessions[0].trials[0].roundId).toBe('r-1');
+  });
+});
+
+describe('v2.3 図鑑の種類', () => {
+  it('合成（種類なし）は前と同じキー。ほかの種類は同じ数・同じ部品でも別の記録', () => {
+    expect(craftKey({ value: 12, parts: [3, 4] })).toBe('12=3+4');
+    expect(craftKey({ value: 12, parts: [3, 4], kind: 'sum' })).toBe('12=3+4');
+    const at = '2026-10-19T10:00:00+09:00';
+    const merged = mergeCraft(
+      [{ value: 12, parts: [3, 4], firstMadeAt: at, modeId: 'mode_a_parity' }],
+      [
+        { value: 12, parts: [3, 4], firstMadeAt: at, modeId: 'mode_e_tiles', kind: 'product' },
+        { value: 12, parts: [3, 4], firstMadeAt: at, modeId: 'mode_h_trains', kind: 'period' },
+      ],
+    );
+    expect(merged).toHaveLength(3);
   });
 });

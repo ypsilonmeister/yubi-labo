@@ -1322,3 +1322,173 @@ button:disabled {
     height: 52px;
   }
 }
+
+/* v2.2: 長さをくらべる手札（いろぼう）は縦にならべて左端をそろえる */
+.choice-tray.stack {
+  flex-direction: column;
+  align-items: flex-start;
+  width: fit-content;
+  margin: 0 auto;
+  gap: 8px;
+}
+
+.choice-tray.stack .choice {
+  justify-content: flex-start;
+  min-height: 52px;
+}
+
+/* v2.3: じっけんラボの段 */
+.home-section {
+  margin: 8px 0 0;
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.tile-lab {
+  border-style: dashed;
+}
+
+/* v2.3: 図鑑の新しい発見 */
+.book-prime,
+.book-balance,
+.book-trains {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.book-trains {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.book-prime span {
+  color: #6e4a9e;
+  font-size: 18px;
+}
+
+.book-page.is-prime {
+  border-color: #b48ad6;
+  background: #f6f0fb;
+}
+
+/* v2.3: じっけんラボ共通 */
+.lab {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.lab-tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.lab-tabs button {
+  min-height: 52px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 3px solid var(--line);
+  background: var(--paper);
+  font-size: 18px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lab-tabs button.on {
+  border-color: var(--ink);
+  background: #fff8e6;
+}
+
+.lab-tray {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.lab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+.choice.is-tried::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.choice {
+  position: relative;
+}
+
+.soup-grid {
+  display: grid;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+}
+
+.soup-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+
+/* v2.3: シーソーの左右の手札 */
+.seesaw-trays {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.seesaw-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 300px;
+  max-width: 470px;
+}
+
+.seesaw-side-label {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.seesaw-side .choice-tray {
+  gap: 6px;
+}
+
+.seesaw-side .choice {
+  min-width: 56px;
+  min-height: 52px;
+  padding: 4px 6px;
+}
+
+/* v2.3: ばいばいラボの すすんだ日 */
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: center;
+  color: #e0a63a;
+  font-size: 18px;
+}

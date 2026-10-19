@@ -4,7 +4,7 @@
 // ラウンド（round）では、問題数と点を見せ、さいごに結果（植物・自分のランキング）を出す。点は減らない。
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AccessibilitySettings, GameContext, LearningSettings, LearningStage, ModeId, Question, Session, TaskCategory, Trial } from '../../core/types';
+import type { AccessibilitySettings, GameContext, LearningSettings, LearningStage, CraftKind, ModeId, Question, Session, TaskCategory, Trial } from '../../core/types';
 import { currentStep } from '../../core/engine/progression';
 import { allTrials, countsInRound, rankOf, ranking, trialPoints } from '../../core/score';
 import { Plant } from '../Plant';
@@ -39,7 +39,7 @@ interface Props {
   /** これまでの合計点（v2.2） */
   totalPoints: () => number;
   onNewRound: (spec: PlaySpec) => void;
-  onCraft: (value: number, parts: number[], mode: ModeId) => void;
+  onCraft: (value: number, parts: number[], mode: ModeId, kind?: CraftKind) => void;
   onExit: () => void;
   onTransfer: (spec: PlaySpec) => void;
 }
@@ -87,7 +87,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
 
   const load = (q: Question) => {
     try {
-      handle.current = engine.startTrial(spec.mode, q, (v, parts) => onCraft(v, parts, spec.mode), spec.round?.id);
+      handle.current = engine.startTrial(spec.mode, q, (v, parts, kind) => onCraft(v, parts, spec.mode, kind), spec.round?.id);
     } catch (e) {
       setError((e as Error).message);
       return;
@@ -104,7 +104,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
     const relay: GameContext = {
       emit: (e) => handle.current?.context.emit(e),
       complete: (r) => handle.current?.context.complete(r),
-      craft: (v, p) => handle.current?.context.craft(v, p),
+      craft: (v, p, k) => handle.current?.context.craft(v, p, k),
       get settings() {
         return settingsRef.current;
       },

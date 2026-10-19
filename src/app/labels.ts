@@ -8,6 +8,10 @@ export const TASK_LABEL: Record<TaskCategory, string> = {
   complement_10: '10を つくる',
   carry_over: 'あふれて 10',
   borrow: '10を ひらく',
+  arrays: 'ならべる',
+  balance: 'つりあわせる',
+  doubling: 'ふえる・わける',
+  period: 'れっしゃ',
 };
 
 export function taskLabel(task: TaskCategory, mode: ModeId): string {
@@ -33,6 +37,10 @@ export const TASK_LABEL_PARENT: Record<TaskCategory, string> = {
   complement_10: '10の補数',
   carry_over: '繰り上がり',
   borrow: '繰り下がり',
+  arrays: '長方形・約数・素数（探索）',
+  balance: '釣り合い（等号）',
+  doubling: '倍と半分（探索）',
+  period: '周期・公倍数（探索）',
 };
 
 export const MODE_LABEL_PARENT: Record<ModeId, string> = {
@@ -40,6 +48,10 @@ export const MODE_LABEL_PARENT: Record<ModeId, string> = {
   mode_b_rods: 'B カラーロッド',
   mode_c_tenframe: 'C 10フレーム',
   mode_d_exchange: 'D 両替商',
+  mode_e_tiles: 'E タイル・リアクター',
+  mode_f_seesaw: 'F シーソー',
+  mode_g_doubling: 'G ばいばいラボ',
+  mode_h_trains: 'H ぼうの れっしゃ',
 };
 
 export const STAGE_LABEL_PARENT: Record<LearningStage, string> = {
