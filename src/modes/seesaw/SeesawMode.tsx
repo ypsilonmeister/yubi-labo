@@ -237,7 +237,11 @@ function ExploreTask({ core }: { core: TrialCore }) {
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
           snap={core.snap(side)}
-          onDrop={(it, id) => id === side && add(side, it.value)}
+          onDrop={(it, id) => {
+            if (id !== side) return;
+            pick.clear();
+            add(side, it.value);
+          }}
         />
       </div>
     );
@@ -257,7 +261,9 @@ function ExploreTask({ core }: { core: TrialCore }) {
           onPan={(side) => {
             const p = side === 'L' ? pickL : pickR;
             const v = p.selected ? Number(p.selected.split('-')[1]) : null;
-            if (v) add(side, v);
+            if (!v) return;
+            p.clear();
+            add(side, v);
           }}
         />
       }
