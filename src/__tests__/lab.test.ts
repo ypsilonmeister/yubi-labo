@@ -95,3 +95,32 @@ describe('v2.3 ばいばいラボ', () => {
     expect(split([16], 0)).toEqual([16]);
   });
 });
+
+import { isPeriodDiscovery, lcm, meetingAt, stepTrains, TRACK, type Trains } from '../modes/trains/scenes';
+
+describe('v2.3 ぼうの れっしゃ', () => {
+  it('1歩ずつのばすと、端がそろうのは公倍数のところだけで、最初は最小公倍数', () => {
+    for (let a = 1; a <= 10; a++)
+      for (let b = 1; b <= 10; b++) {
+        let t: Trains | null = { a, b, lenA: 0, lenB: 0 };
+        const meets: number[] = [];
+        for (;;) {
+          t = stepTrains(t);
+          if (!t) break;
+          const m = meetingAt(t);
+          if (m !== null) meets.push(m);
+          expect(t.lenA % a).toBe(0);
+          expect(t.lenB % b).toBe(0);
+        }
+        const L = lcm(a, b);
+        const expected = Array.from({ length: Math.floor(TRACK / L) }, (_, i) => (i + 1) * L);
+        expect(meets).toEqual(expected);
+      }
+  });
+
+  it('図鑑に残すのは、ちがう長さでどちらも2以上のとき', () => {
+    expect(isPeriodDiscovery(3, 4)).toBe(true);
+    expect(isPeriodDiscovery(4, 4)).toBe(false);
+    expect(isPeriodDiscovery(1, 4)).toBe(false);
+  });
+});

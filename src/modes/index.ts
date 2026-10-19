@@ -7,6 +7,7 @@ import { ExchangeMode } from './exchange/ExchangeMode';
 import { TilesMode } from './tiles/TilesMode';
 import { SeesawMode } from './seesaw/SeesawMode';
 import { DoublingMode } from './doubling/DoublingMode';
+import { TrainsMode } from './trains/TrainsMode';
 
 let done = false;
 export function registerModes() {
@@ -20,4 +21,5 @@ export function registerModes() {
   GameRegistry.register(TilesMode);
   GameRegistry.register(SeesawMode);
   GameRegistry.register(DoublingMode);
+  GameRegistry.register(TrainsMode);
 }
