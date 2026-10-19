@@ -1,4 +1,5 @@
 // Mode G：ばいばいラボ（v2.3・§19.3）。自由探索のみ（決定点なし）。
+// v2.4: スライムの形をやめ、タイルと数字（今の数・分数）を出す（本人の希望・§20。数字なしの設定もある）。
 // ふえる: 「1にち すすむ」をタップするたびに ×2・×3・×10。64 匹までは1匹ずつ（親から分かれて出てくる）、
 //   それより多いと 1・10・100・1000・10000 のまとまり（ブロック）で見せる。数字は出さない。「1にち もどる」で戻れる。
 // わける: スライムをタップすると半分に分かれる（1/16 まで）。「がったい」で同じ大きさどうしが合わさり、元の大きさにもどる。
@@ -17,17 +18,22 @@ type S = Readonly<AccessibilitySettings>;
 const W = 1000;
 const H = 400;
 
-function SlimeShape({ x, y, r, color, opacity = 1 }: { x: number; y: number; r: number; color: string; opacity?: number }) {
+/** 1つのタイル（v2.4: スライムの形をやめた） */
+function TileShape({ x, y, r, color, opacity = 1 }: { x: number; y: number; r: number; color: string; opacity?: number }) {
   if (opacity <= 0.01) return null;
+  const side = r * 1.7;
+  return <rect x={x - side / 2} y={y - side / 2} width={side} height={side} rx={side * 0.16} fill={color} stroke={OUTLINE} strokeWidth={Math.max(1, r / 12)} opacity={opacity} />;
+}
+
+/** 今の数の大きな数字（v2.4・数字ありの設定のとき） */
+function BigNumber({ n }: { n: number }) {
+  const w = 40 + String(n).length * 30;
   return (
-    <g opacity={opacity}>
-      <path d={`M${x - r} ${y + r * 0.7} Q${x - r} ${y - r} ${x} ${y - r} Q${x + r} ${y - r} ${x + r} ${y + r * 0.7} Z`} fill={color} stroke={OUTLINE} strokeWidth={Math.max(1, r / 10)} />
-      {r > 7 && (
-        <>
-          <circle cx={x - r * 0.33} cy={y - r * 0.12} r={r * 0.11} fill={OUTLINE} />
-          <circle cx={x + r * 0.33} cy={y - r * 0.12} r={r * 0.11} fill={OUTLINE} />
-        </>
-      )}
+    <g pointerEvents="none">
+      <rect x={W - 40 - w} y={22} width={w} height={60} rx={16} fill="#fffaf0" stroke={OUTLINE} strokeWidth={3} />
+      <text x={W - 40 - w / 2} y={68} textAnchor="middle" fontSize={46} fontWeight={800} fill="#3a3226">
+        {n}
+      </text>
     </g>
   );
 }
@@ -144,7 +150,8 @@ function GrowField({ n, dots, s, thumb, glow }: { n: number; dots: Dot[] | null;
     <svg viewBox={`0 0 ${W} ${H}`} className={thumb ? undefined : 'field-svg'} width={thumb ? 150 : undefined} height={thumb ? (150 * H) / W : undefined} aria-hidden={thumb}>
       <rect x={20} y={14} width={W - 40} height={H - 28} rx={26} fill="#f6f1e6" stroke={SLOT_STROKE} strokeWidth={3} />
       <g className={successClass(s, !!glow)}>
-        {n <= SHOW_EACH_MAX ? (dots ?? dotLayout(n)).map((d, i) => <SlimeShape key={i} x={d.x} y={d.y} r={d.r} color={color} opacity={d.opacity} />) : <Blocks n={n} />}
+        {s.numberLabels && !thumb && <BigNumber n={n} />}
+        {n <= SHOW_EACH_MAX ? (dots ?? dotLayout(n)).map((d, i) => <TileShape key={i} x={d.x} y={d.y} r={d.r} color={color} opacity={d.opacity} />) : <Blocks n={n} />}
       </g>
     </svg>
   );
@@ -251,6 +258,24 @@ function GrowLab({ core }: { core: TrialCore }) {
 
 // ---------- わける ----------
 
+/** かけらの大きさを分数で書く（1 は「1」） */
+function Fraction({ x, y, d, r }: { x: number; y: number; d: number; r: number }) {
+  const fs = Math.max(14, Math.min(40, r * 0.55));
+  if (d === 1)
+    return (
+      <text x={x} y={y + fs * 0.35} textAnchor="middle" fontSize={fs * 1.3} fontWeight={800} fill="#3a3226" pointerEvents="none">
+        1
+      </text>
+    );
+  return (
+    <g pointerEvents="none" fill="#3a3226" fontWeight={800} textAnchor="middle" fontSize={fs}>
+      <text x={x} y={y - fs * 0.18}>1</text>
+      <line x1={x - fs * 0.55} x2={x + fs * 0.55} y1={y} y2={y} stroke="#3a3226" strokeWidth={Math.max(2, fs / 9)} />
+      <text x={x} y={y + fs * 0.9}>{d}</text>
+    </g>
+  );
+}
+
 const R1 = 120;
 const REF = { x: 150, y: 210 };
 
@@ -310,7 +335,7 @@ function SplitLab({ core }: { core: TrialCore }) {
   const layout = pieceLayout(pieces);
   return (
     <ModeLayout
-      prompt={pieces.length === 1 ? 'スライムを タップすると はんぶんに わかれるよ' : even ? 'ぜんぶ おなじ おおきさ！「がったい」で もとに もどるかな' : 'もっと わけたり、「がったい」したり してみよう'}
+      prompt={pieces.length === 1 ? 'まるを タップすると はんぶんに わかれるよ' : even ? 'ぜんぶ おなじ おおきさ！「がったい」で もとに もどるかな' : 'もっと わけたり、「がったい」したり してみよう'}
       field={
         <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
           <rect x={20} y={14} width={W - 40} height={H - 28} rx={26} fill="#f6f1e6" stroke={SLOT_STROKE} strokeWidth={3} />
@@ -324,8 +349,7 @@ function SplitLab({ core }: { core: TrialCore }) {
               <g key={`${i}-${pieces[i]}`} onClick={() => void tap(i)} style={{ cursor: pieces[i] * 2 <= MAX_PARTS ? 'pointer' : 'default' }}>
                 <circle cx={p.x} cy={p.y} r={Math.max(p.r, 24)} fill="transparent" />
                 <circle cx={p.x} cy={p.y} r={p.r} fill={color} stroke={OUTLINE} strokeWidth={2.5} />
-                <circle cx={p.x - p.r * 0.32} cy={p.y - p.r * 0.15} r={p.r * 0.1} fill={OUTLINE} />
-                <circle cx={p.x + p.r * 0.32} cy={p.y - p.r * 0.15} r={p.r * 0.1} fill={OUTLINE} />
+                {s.numberLabels && <Fraction x={p.x} y={p.y} d={pieces[i]} r={p.r} />}
               </g>
             ))}
           </g>

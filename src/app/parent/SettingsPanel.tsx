@@ -19,6 +19,7 @@ const A11Y: Field<keyof AccessibilitySettings>[] = [
   { key: 'reducedMotion', label: '動きを減らす', help: 'OSの「視差効果を減らす」設定も反映します。動きの代わりに状態を1つずつ切り替えて見せます。', options: [[false, 'OFF'], [true, 'ON']] },
   { key: 'animationSpeed', label: '分解・合体の速さ', options: [['slow', 'ゆっくり'], ['normal', 'ふつう'], ['instant', 'すぐ（動かさない）']] },
   { key: 'directManipulation', label: 'ダイレクト操作', help: 'ON（初期）: 手札を1タップすると置き先へ吸い込まれます。10フレーム・両替では、むれ・コインの「ちぎる位置」をタップして入れます（入れたあとの「？の箱」を選ぶ手順は省きます）。OFF: 選ぶ→置き先をタップ（v2.1 の操作）。', options: [[true, 'ON'], [false, 'OFF']] },
+  { key: 'numberLabels', label: '数字のふだ', help: 'ON（初期・本人の希望）: 10フレームのへや・むれ・手札、ばいばいラボの数とかけらに数字を出します。式（たし算の式など）は今まで通り「かずで みる」のときだけです。OFF: 形とタイルだけ。', options: [[true, 'ON'], [false, 'OFF']] },
   { key: 'rodGrid', label: 'いろぼうの目盛り', help: 'ON（初期）: 背景に1ずつの目盛り線（5と10は太く、5のまとまりに色の帯）と、棒の中に1ずつの区切りを描き、手札を縦にならべて左端をそろえます。数字は出しません。OFF: v2.1 の目盛りなしの棒。', options: [[true, 'ON'], [false, 'OFF']] },
   { key: 'inputMethod', label: '操作', help: 'タップ（選ぶ→置き先をタップ）は常に使えます。「ドラッグも使う」にすると、置き先へ引っぱって置くこともできます。', options: [['tap', 'タップ'], ['drag', 'ドラッグも使う']] },
   { key: 'showEquationOnRequest', label: '「かずで みる」ボタン', help: '本人が押したときだけ数・式を表示します（答えは問題が終わってから）。', options: [[true, '表示する'], [false, '表示しない']] },

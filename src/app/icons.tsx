@@ -7,14 +7,10 @@ import { plateCells } from '../core/math/parity';
 
 type S = Readonly<AccessibilitySettings>;
 
-function Slime({ x, y, r, color }: { x: number; y: number; r: number; color: string }) {
-  return (
-    <g>
-      <path d={`M${x - r} ${y + r * 0.6} Q${x - r} ${y - r} ${x} ${y - r} Q${x + r} ${y - r} ${x + r} ${y + r * 0.6} Z`} fill={color} stroke={OUTLINE} strokeWidth={2} />
-      <circle cx={x - r * 0.35} cy={y - r * 0.1} r={r * 0.12} fill={OUTLINE} />
-      <circle cx={x + r * 0.35} cy={y - r * 0.1} r={r * 0.12} fill={OUTLINE} />
-    </g>
-  );
+/** 小さな四角いタイル（v2.4: スライムの形はやめた） */
+function TileMark({ x, y, r, color }: { x: number; y: number; r: number; color: string }) {
+  const side = r * 1.7;
+  return <rect x={x - side / 2} y={y - side / 2} width={side} height={side} rx={side * 0.18} fill={color} stroke={OUTLINE} strokeWidth={1.5} />;
 }
 
 export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: number }) {
@@ -42,7 +38,7 @@ export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: nu
         <>
           <rect x={6} y={30} width={88} height={40} rx={5} fill="#fffaf0" stroke={OUTLINE} strokeWidth={2} />
           {Array.from({ length: 8 }, (_, i) => (
-            <Slime key={i} x={15 + Math.floor(i / 2) * 17.5} y={42 + (i % 2) * 18} r={7} color={c(8)} />
+            <TileMark key={i} x={15 + Math.floor(i / 2) * 17.5} y={42 + (i % 2) * 18} r={7} color={c(8)} />
           ))}
         </>
       )}
@@ -91,13 +87,13 @@ function LabIcon({ mode, c }: { mode: ModeId; c: (n: number) => string }) {
   if (mode === 'mode_g_doubling')
     return (
       <g>
-        <Slime x={18} y={56} r={9} color={c(1)} />
+        <TileMark x={18} y={56} r={9} color={c(1)} />
         <text x={33} y={60} fontSize={14} fill="#3a3226">→</text>
-        <Slime x={52} y={50} r={7} color={c(2)} />
-        <Slime x={52} y={68} r={7} color={c(2)} />
+        <TileMark x={52} y={50} r={7} color={c(2)} />
+        <TileMark x={52} y={68} r={7} color={c(2)} />
         <text x={64} y={60} fontSize={14} fill="#3a3226">→</text>
         {[0, 1, 2, 3].map((i) => (
-          <Slime key={i} x={84} y={34 + i * 14} r={5.5} color={c(4)} />
+          <TileMark key={i} x={84} y={34 + i * 14} r={5.5} color={c(4)} />
         ))}
       </g>
     );

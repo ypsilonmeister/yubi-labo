@@ -1492,3 +1492,17 @@ button:disabled {
   color: #e0a63a;
   font-size: 18px;
 }
+
+/* v2.4: 数字のふだ（手札） */
+.num-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.num-card b {
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 800;
+}
