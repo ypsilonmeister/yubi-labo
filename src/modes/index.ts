@@ -6,6 +6,7 @@ import { TenFrameMode } from './tenframe/TenFrameMode';
 import { ExchangeMode } from './exchange/ExchangeMode';
 import { TilesMode } from './tiles/TilesMode';
 import { SeesawMode } from './seesaw/SeesawMode';
+import { DoublingMode } from './doubling/DoublingMode';
 
 let done = false;
 export function registerModes() {
@@ -18,4 +19,5 @@ export function registerModes() {
   // v2.3 じっけんラボ（§19）
   GameRegistry.register(TilesMode);
   GameRegistry.register(SeesawMode);
+  GameRegistry.register(DoublingMode);
 }

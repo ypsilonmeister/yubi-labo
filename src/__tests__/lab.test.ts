@@ -62,3 +62,36 @@ describe('v2.3 シーソー', () => {
     expect(isDiscovery([4], [])).toBe(false);
   });
 });
+
+import { canGrow, evenSplit, fromBlocks, GROW_MAX, mergeAll, placeBlocks, powerOf, split, total } from '../modes/doubling/scenes';
+
+describe('v2.3 ばいばいラボ', () => {
+  it('まとまりで見せても数は変わらない', () => {
+    for (const n of [0, 1, 9, 10, 64, 128, 1024, 59049, GROW_MAX]) expect(fromBlocks(placeBlocks(n))).toBe(n);
+    expect(placeBlocks(1024)).toEqual([4, 2, 0, 1, 0]);
+    expect(canGrow(65536, 2)).toBe(false);
+    expect(canGrow(32768, 2)).toBe(true);
+  });
+
+  it('倍々の発見は、同じ倍率で2日以上すすんだときだけ', () => {
+    expect(powerOf([2, 2, 2])).toEqual({ factor: 2, days: 3, value: 8 });
+    expect(powerOf([2])).toBeNull();
+    expect(powerOf([2, 3])).toBeNull();
+    expect(powerOf([10, 10, 10])?.value).toBe(1000);
+  });
+
+  it('わけても合体しても合計はいつも 1。全部合体すると 1 にもどる', () => {
+    let p = [1];
+    p = split(p, 0);
+    expect(evenSplit(p)).toBe(2);
+    p = split(split(p, 0), 2);
+    expect(p).toEqual([4, 4, 4, 4]);
+    expect(evenSplit(p)).toBe(4);
+    p = split(p, 1);
+    expect(total(p)).toBeCloseTo(1);
+    expect(evenSplit(p)).toBeNull();
+    expect(mergeAll(p)).toEqual([1]);
+    // 16 より細かくはしない
+    expect(split([16], 0)).toEqual([16]);
+  });
+});

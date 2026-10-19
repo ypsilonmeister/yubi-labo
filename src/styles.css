@@ -1482,3 +1482,13 @@ button:disabled {
   min-height: 52px;
   padding: 4px 6px;
 }
+
+/* v2.3: ばいばいラボの すすんだ日 */
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: center;
+  color: #e0a63a;
+  font-size: 18px;
+}
