@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-The repository (still named `yubi-labo`, deployed at `/yubi-labo/`) now hosts **さんすうクラフト**, an implementation of the math-craft spec v2.1 (`docs/SPEC.md`). The previous app (ゆびラボ: maze/kanji/moji/hand tracking) was fully cleared by the child and removed. All four modes (A 偶奇パズル, B カラーロッド, C 10フレーム, D 両替商), the craft book, and the parent dashboard are implemented. v2.2 (SPEC §18) added direct manipulation, auto progression with adaptive skip (`src/core/engine/progression.ts`), and scores/ranks/rounds. Implementation-time judgment calls are recorded in `docs/SPEC.md` §17.
+The repository (still named `yubi-labo`, deployed at `/yubi-labo/`) now hosts **さんすうクラフト**, an implementation of the math-craft spec v2.1 (`docs/SPEC.md`). The previous app (ゆびラボ: maze/kanji/moji/hand tracking) was fully cleared by the child and removed. All four modes (A 偶奇パズル, B カラーロッド, C 10フレーム, D 両替商), the craft book, and the parent dashboard are implemented. v2.2 (SPEC §18) added direct manipulation, auto progression with adaptive skip (`src/core/engine/progression.ts`), and scores/ranks/rounds. v2.3 (SPEC §19) added the じっけんラボ modes E–H (`src/modes/tiles|seesaw|doubling|trains`, `group: 'lab'`) and craft-book kinds. Implementation-time judgment calls are recorded in `docs/SPEC.md` §17.
 
 Commands:
 
 - `npm run dev` — Vite dev server.
-- `npm test` — vitest: math rules, all carry/borrow combinations rendered by modes C/D (acceptance test 12), question validation, metrics, engine, import/export/migration, scores/ranks/rounds and auto progression (`score.test.ts`).
+- `npm test` — vitest: math rules, all carry/borrow combinations rendered by modes C/D (acceptance test 12), question validation, metrics, engine, import/export/migration, scores/ranks/rounds and auto progression (`score.test.ts`), lab-mode pure logic (`lab.test.ts`).
 - `npm run build` — `tsc --noEmit` + Vite production build. Run both `npm test` and `npm run build` before pushing.
 - **Deploy**: pushing to `main` publishes to GitHub Pages via `.github/workflows/deploy.yml` (runs `npm test`, then builds with `GITHUB_PAGES` set so Vite `base` is `/yubi-labo/`). Treat `main` as live for the child.
 
