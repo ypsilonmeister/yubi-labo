@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { createReactPlugin, useBridge, type ModeBridge } from '../kit/bridge';
 import { useTrialCore, usePicker, type TrialCore } from '../kit/useTrialCore';
 import { ChoiceTray, type ChoiceItem } from '../kit/ChoiceTray';
+import { useFieldScale } from '../kit/useFieldScale';
 import { HistoryStrip, ModeLayout, Sparkles, StepControls, successClass } from '../kit/ui';
 import { numberColor, inkOn, OUTLINE, ROD_GRID, SLOT_FILL, SLOT_STROKE, SLOT_STROKE_STRONG } from '../../core/colors';
 import { choicesOf, decisionValue } from '../../core/engine/questions';
@@ -97,19 +98,24 @@ function Frame({ length, y, strong, over }: { length: number; y: number; strong?
   );
 }
 
-function RodIcon({ n, s }: { n: number; s: S }) {
-  const u = 16;
+/**
+ * 手札の棒。scale（場の SVG の表示倍率）があれば、場にある棒とまったく同じ長さ・太さで描く（v2.4）。
+ * scale がまだ測れていない（0）ときと自由探索の手札は、小さめの決まった大きさ。
+ */
+function RodIcon({ n, s, scale = 0 }: { n: number; s: S; scale?: number }) {
+  const u = scale > 0 ? UNIT * scale : 16;
+  const h = scale > 0 ? RH * scale : 24;
   const color = numberColor(n, s.colorScheme);
   return (
-    <svg width={n * u + 6} height={30} viewBox={`-3 -3 ${n * u + 6} 30`} aria-hidden>
-      <rect x={0} y={0} width={n * u} height={24} rx={4} fill={color} stroke={OUTLINE} strokeWidth={2} />
-      {s.rodGrid && <RodSegments n={n} x={0} y={0} w={n * u} h={24} color={color} />}
+    <svg width={n * u + 6} height={h + 6} viewBox={`-3 -3 ${n * u + 6} ${h + 6}`} aria-hidden>
+      <rect x={0} y={0} width={n * u} height={h} rx={scale > 0 ? 8 * scale : 4} fill={color} stroke={OUTLINE} strokeWidth={scale > 0 ? Math.max(2, 3 * scale) : 2} />
+      {s.rodGrid && <RodSegments n={n} x={0} y={0} w={n * u} h={h} color={color} />}
     </svg>
   );
 }
 
-function rodChoices(values: number[], s: S): ChoiceItem[] {
-  return values.map((v, i) => ({ key: `r${i}-${v}`, value: v, label: 'ぼう', node: <RodIcon n={v} s={s} /> }));
+function rodChoices(values: number[], s: S, scale = 0): ChoiceItem[] {
+  return values.map((v, i) => ({ key: `r${i}-${v}`, value: v, label: 'ぼう', node: <RodIcon n={v} s={s} scale={scale} /> }));
 }
 
 function useChoiceValues(core: TrialCore, value: number): number[] {
@@ -147,7 +153,8 @@ function IdentifyTask({ core }: { core: TrialCore }) {
   const pick = usePicker(core);
   const [placed, setPlaced] = useState<number | null>(null);
   const [ok, setOk] = useState(false);
-  const items = rodChoices(useChoiceValues(core, n), s);
+  const field = useFieldScale(W);
+  const items = rodChoices(useChoiceValues(core, n), s, field.scale);
   const y = 130;
 
   core.onUndo(() => {
@@ -176,7 +183,7 @@ function IdentifyTask({ core }: { core: TrialCore }) {
     <ModeLayout
       prompt="わくと おなじ ながさの ぼうは どれかな"
       field={
-        <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+        <svg ref={field.ref} viewBox={`0 0 ${W} ${H}`} className="field-svg">
           <RodGrid s={s} />
           <DropArea onTap={() => place(items.find((i) => i.key === pick.selected))} />
           <Frame length={n} y={y} strong={core.hintLevel >= 1} />
@@ -216,7 +223,8 @@ function ComposeTask({ core }: { core: TrialCore }) {
   const [rod, setRod] = useState<RodPose | null>(null);
   const [ok, setOk] = useState(false);
   const [history, setHistory] = useState<RodPose[][]>([]);
-  const items = rodChoices(useChoiceValues(core, need), s);
+  const field = useFieldScale(W);
+  const items = rodChoices(useChoiceValues(core, need), s, field.scale);
   const aRod: RodPose = { key: 'a', value: a, x: X0, y };
 
   core.onUndo(() => {
@@ -264,7 +272,7 @@ function ComposeTask({ core }: { core: TrialCore }) {
     <ModeLayout
       prompt={q.taskType === 'complement_10' ? '10の ながさに なるように、すきまに はいる ぼうは どれかな' : 'すきまに ぴったり はいる ぼうは どれかな'}
       field={
-        <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+        <svg ref={field.ref} viewBox={`0 0 ${W} ${H}`} className="field-svg">
           <RodGrid s={s} />
           <DropArea onTap={() => void place(items.find((i) => i.key === pick.selected))} />
           <Frame length={total} y={y} strong={core.hintLevel >= 1} />
@@ -341,7 +349,8 @@ function PredictTask({ core }: { core: TrialCore }) {
   const pick = usePicker(core);
   const [pred, setPred] = useState<number | null>(null);
   const [merged, setMerged] = useState(false);
-  const items = rodChoices(useChoiceValues(core, answer), s);
+  const field = useFieldScale(W);
+  const items = rodChoices(useChoiceValues(core, answer), s, field.scale);
   const connected: RodPose[] = [
     { key: 'a', value: a, x: X0, y: y1 },
     { key: 'b', value: b, x: X0 + a * UNIT, y: y1 },
@@ -377,7 +386,7 @@ function PredictTask({ core }: { core: TrialCore }) {
     <ModeLayout
       prompt="つないだ ながさと おなじ ぼうは どれかな"
       field={
-        <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+        <svg ref={field.ref} viewBox={`0 0 ${W} ${H}`} className="field-svg">
           <RodGrid s={s} />
           <DropArea onTap={() => void place(items.find((i) => i.key === pick.selected))} />
           {merged ? (

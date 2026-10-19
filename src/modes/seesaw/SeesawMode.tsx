@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { createReactPlugin, useBridge, type ModeBridge } from '../kit/bridge';
 import { useTrialCore, usePicker, type TrialCore } from '../kit/useTrialCore';
 import { ChoiceTray, type ChoiceItem } from '../kit/ChoiceTray';
+import { useFieldScale } from '../kit/useFieldScale';
 import { ModeLayout, successClass } from '../kit/ui';
 import { inkOn, numberColor, OUTLINE, SLOT_STROKE, SLOT_STROKE_STRONG, TILE } from '../../core/colors';
 import { choicesOf, decisionValue } from '../../core/engine/questions';
@@ -44,7 +45,7 @@ function Weight({ n, x, y, s, ghost, onTap }: { n: number; x: number; y: number;
   );
 }
 
-function Seesaw(props: { left: number[]; right: number[]; angle: number; s: S; strong?: Side | null; ghostRight?: number | null; onRemove?: (side: Side, i: number) => void; onPan?: (side: Side) => void; glow?: boolean }) {
+function Seesaw(props: { svgRef?: React.Ref<SVGSVGElement>; left: number[]; right: number[]; angle: number; s: S; strong?: Side | null; ghostRight?: number | null; onRemove?: (side: Side, i: number) => void; onPan?: (side: Side) => void; glow?: boolean }) {
   const { left, right, angle, s } = props;
   const level = sum(left) === sum(right) && (left.length > 0 || right.length > 0);
   const pan = (side: Side, list: number[], ghost?: number | null) => {
@@ -62,7 +63,7 @@ function Seesaw(props: { left: number[]; right: number[]; angle: number; s: S; s
     );
   };
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="field-svg">
+    <svg ref={props.svgRef} viewBox={`0 0 ${W} ${H}`} className="field-svg">
       {/* 水平の目じるし（いつも見えている） */}
       <line x1={40} x2={W - 40} y1={PIVOT.y - BEAM.h / 2} y2={PIVOT.y - BEAM.h / 2} stroke={level ? TILE.glow : SLOT_STROKE} strokeWidth={level ? 4 : 2} strokeDasharray={level ? undefined : '10 8'} />
       <path d={`M${PIVOT.x} ${PIVOT.y} L${PIVOT.x - 46} ${H - 20} L${PIVOT.x + 46} ${H - 20} Z`} fill="#c9bca5" stroke={OUTLINE} strokeWidth={3} />
@@ -76,18 +77,30 @@ function Seesaw(props: { left: number[]; right: number[]; angle: number; s: S; s
   );
 }
 
-function WeightIcon({ n, s }: { n: number; s: S }) {
-  const u = 9;
+/**
+ * 手札の重り。scale（場の SVG の表示倍率）があれば、皿の上の重りとまったく同じ長さ・太さ・区切りで描く（v2.4）。
+ * 自由探索の手札（20こ並ぶ）は小さめの決まった大きさ。
+ */
+function WeightIcon({ n, s, scale = 0 }: { n: number; s: S; scale?: number }) {
+  const u = scale > 0 ? UNIT * scale : 9;
+  const h = scale > 0 ? (WH - 2) * scale : 18;
   const color = numberColor(n, s.colorScheme);
+  const ink = inkOn(color);
   return (
-    <svg width={n * u + 6} height={24} viewBox={`-3 -3 ${n * u + 6} 24`} aria-hidden>
-      <rect x={0} y={0} width={n * u} height={18} rx={3} fill={color} stroke={OUTLINE} strokeWidth={1.5} />
-      {n >= 5 && <line x1={5 * u} x2={5 * u} y1={2} y2={16} stroke={inkOn(color)} strokeWidth={2.5} opacity={0.7} />}
+    <svg width={n * u + 6} height={h + 6} viewBox={`-3 -3 ${n * u + 6} ${h + 6}`} aria-hidden>
+      <rect x={0} y={0} width={n * u} height={h} rx={scale > 0 ? 6 * scale : 3} fill={color} stroke={OUTLINE} strokeWidth={scale > 0 ? Math.max(1.5, 2.5 * scale) : 1.5} />
+      {Array.from({ length: n - 1 }, (_, i) => {
+        const k = i + 1;
+        const five = k % 5 === 0;
+        if (scale <= 0 && !five) return null;
+        return <line key={k} x1={k * u} x2={k * u} y1={five ? h * 0.1 : h * 0.27} y2={five ? h * 0.9 : h * 0.67} stroke={ink} strokeWidth={five ? 2.5 : 1.5} opacity={five ? 0.75 : 0.4} />;
+      })}
     </svg>
   );
 }
 
-const weightItems = (values: number[], s: S, prefix = 'w'): ChoiceItem[] => values.map((v, i) => ({ key: `${prefix}${i}-${v}`, value: v, label: 'おもり', node: <WeightIcon n={v} s={s} /> }));
+const weightItems = (values: number[], s: S, prefix = 'w', scale = 0): ChoiceItem[] =>
+  values.map((v, i) => ({ key: `${prefix}${i}-${v}`, value: v, label: 'おもり', node: <WeightIcon n={v} s={s} scale={scale} /> }));
 
 /** 傾きを今の角度から目標の角度へ、ゆっくり1回だけ変える */
 function useTilt(core: TrialCore, initial: number) {
@@ -113,7 +126,8 @@ function BalanceTask({ core }: { core: TrialCore }) {
   const pick = usePicker(core);
   const all = useMemo(() => choicesOf(q), [q]);
   const values = core.hintLevel >= 2 ? all.filter((v) => narrowToTwo(answer, q.distractors).includes(v)) : all;
-  const items = weightItems(values, s);
+  const field = useFieldScale(W);
+  const items = weightItems(values, s, 'w', field.scale);
 
   core.onUndo(() => {
     if (core.anim.busy || ok) return;
@@ -150,6 +164,7 @@ function BalanceTask({ core }: { core: TrialCore }) {
       prompt={ok ? 'つりあった！' : placed !== null ? 'もどすか、ほかの おもりに かえて みよう' : 'みぎの さらに どの おもりを のせると つりあうかな'}
       field={
         <Seesaw
+          svgRef={field.ref}
           left={left}
           right={placed !== null ? [c, placed] : [c]}
           angle={tilt.angle}
@@ -166,6 +181,7 @@ function BalanceTask({ core }: { core: TrialCore }) {
           selected={pick.selected}
           onTap={(it) => pick.toggle(it.key, it.value)}
           drag={s.inputMethod === 'drag'}
+          stack
           snap={core.snap('R')}
           onDrop={(it) => void place(it)}
           demoKey={core.demo === 'pick' ? items.find((i) => i.value === answer)?.key : null}
