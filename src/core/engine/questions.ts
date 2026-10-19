@@ -9,6 +9,10 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   complement_10: 'complement',
   carry_over: 'add',
   borrow: 'subtract',
+  arrays: 'arrange',
+  balance: 'balance',
+  doubling: 'scale',
+  period: 'cycle',
 };
 
 export function strategyFor(task: TaskCategory, mode: ModeId, settings: Readonly<AccessibilitySettings>): Strategy {
@@ -32,7 +36,13 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'complement_10':
       return 10 - operands[0];
     case 'borrow':
+    case 'balance':
       return operands[0] - operands[1];
+    case 'arrays':
+    case 'doubling':
+    case 'period':
+      // じっけんラボは自由探索のみ（expectedValue は null で出す）
+      return operands[0] ?? 0;
   }
 }
 
@@ -55,7 +65,13 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
       // 一の位に残る数（10 のまとまりと残り）
       return a + b - 10;
     case 'borrow':
+    case 'balance':
+      // balance: 右の皿に足す重り（左の重さ − 右にある重り）
       return a - b;
+    case 'arrays':
+    case 'doubling':
+    case 'period':
+      return a ?? 0;
   }
 }
 
@@ -95,7 +111,20 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
       return allCarryPairs();
     case 'borrow':
       return allBorrowPairs();
+    case 'balance':
+      return balancePairs();
+    case 'arrays':
+    case 'doubling':
+    case 'period':
+      return [];
   }
+}
+
+/** v2.3 釣り合い: 左の重さ t（6〜18。10をこえたら 10 と のこり の2つ）、右にある重り c（1〜9）、足す重り t−c（1〜9） */
+export function balancePairs(): number[][] {
+  const out: number[][] = [];
+  for (let t = 6; t <= 18; t++) for (let c = 1; c <= 9; c++) if (t - c >= 1 && t - c <= 9 && t - c !== c) out.push([t, c]);
+  return out;
 }
 
 const DIFFICULTY: Record<TaskCategory, number> = {
@@ -105,6 +134,10 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   complement_10: 2,
   carry_over: 3,
   borrow: 4,
+  arrays: 0,
+  balance: 3,
+  doubling: 0,
+  period: 0,
 };
 
 export interface GenerateOptions {
@@ -207,6 +240,7 @@ export function validateQuestion(q: Question): string[] {
   const [a, b] = q.operands;
   if (q.taskType === 'carry_over' && !isCarryPair(a, b)) errs.push('繰り上がりの範囲外（1〜9、和11〜18）');
   if (q.taskType === 'borrow' && !isBorrowPair(a, b)) errs.push('繰り下がりの範囲外（被減数11〜18、減数2〜9、一の位<減数）');
+  if (q.taskType === 'balance' && !(a >= 6 && a <= 18 && b >= 1 && b <= 9 && a - b >= 1 && a - b <= 9)) errs.push('釣り合いの範囲外（左6〜18、右1〜9、足す重り1〜9）');
   const choices = q.distractors.length + 1;
   if (choices < 2 || choices > 4) errs.push('選択肢は2〜4個');
   const dv = decisionValue(q);

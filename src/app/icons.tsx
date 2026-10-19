@@ -1,7 +1,7 @@
 // モード・課題のアイコン（色は colorScheme に従う）
 
 import type { AccessibilitySettings, ModeId, TaskCategory } from '../core/types';
-import { numberColor, OUTLINE } from '../core/colors';
+import { numberColor, OUTLINE, TILE } from '../core/colors';
 import { PlateCells, Silhouette } from '../modes/shared/Plate';
 import { plateCells } from '../core/math/parity';
 
@@ -46,6 +46,7 @@ export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: nu
           ))}
         </>
       )}
+      {(mode === 'mode_e_tiles' || mode === 'mode_f_seesaw' || mode === 'mode_g_doubling' || mode === 'mode_h_trains') && <LabIcon mode={mode} c={c} />}
       {mode === 'mode_d_exchange' && (
         <>
           <polygon points="50,14 72,26 72,50 50,62 28,50 28,26" fill={c(10)} stroke={OUTLINE} strokeWidth={2} />
@@ -63,6 +64,53 @@ export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: nu
         </>
       )}
     </svg>
+  );
+}
+
+/** v2.3 じっけんラボのアイコン */
+function LabIcon({ mode, c }: { mode: ModeId; c: (n: number) => string }) {
+  if (mode === 'mode_e_tiles')
+    return (
+      <g>
+        {Array.from({ length: 12 }, (_, i) => (
+          <rect key={i} x={20 + (i % 4) * 15} y={26 + Math.floor(i / 4) * 15} width={14} height={14} rx={2} fill={TILE.fill} stroke={OUTLINE} strokeWidth={1.5} />
+        ))}
+        <rect x={18} y={24} width={64} height={49} rx={4} fill="none" stroke={TILE.glow} strokeWidth={3} />
+      </g>
+    );
+  if (mode === 'mode_f_seesaw')
+    return (
+      <g>
+        <path d="M50 58 L40 84 L60 84 Z" fill="#c9bca5" stroke={OUTLINE} strokeWidth={2} />
+        <rect x={10} y={52} width={80} height={6} rx={3} fill="#8c7c64" stroke={OUTLINE} strokeWidth={1.5} />
+        <rect x={14} y={38} width={8 * 3.4} height={12} rx={2} fill={c(8)} stroke={OUTLINE} strokeWidth={1.5} />
+        <rect x={56} y={38} width={5 * 3.4} height={12} rx={2} fill={c(5)} stroke={OUTLINE} strokeWidth={1.5} />
+        <rect x={56} y={24} width={3 * 3.4} height={12} rx={2} fill={c(3)} stroke={OUTLINE} strokeWidth={1.5} />
+      </g>
+    );
+  if (mode === 'mode_g_doubling')
+    return (
+      <g>
+        <Slime x={18} y={56} r={9} color={c(1)} />
+        <text x={33} y={60} fontSize={14} fill="#3a3226">→</text>
+        <Slime x={52} y={50} r={7} color={c(2)} />
+        <Slime x={52} y={68} r={7} color={c(2)} />
+        <text x={64} y={60} fontSize={14} fill="#3a3226">→</text>
+        {[0, 1, 2, 3].map((i) => (
+          <Slime key={i} x={84} y={34 + i * 14} r={5.5} color={c(4)} />
+        ))}
+      </g>
+    );
+  return (
+    <g>
+      {[0, 1, 2, 3].map((i) => (
+        <rect key={`a${i}`} x={8 + i * 21} y={34} width={20} height={11} rx={2} fill={c(3)} stroke={OUTLINE} strokeWidth={1.5} />
+      ))}
+      {[0, 1, 2].map((i) => (
+        <rect key={`b${i}`} x={8 + i * 28} y={52} width={27} height={11} rx={2} fill={c(4)} stroke={OUTLINE} strokeWidth={1.5} />
+      ))}
+      <line x1={92} x2={92} y1={26} y2={72} stroke={TILE.glow} strokeWidth={3} />
+    </g>
   );
 }
 
@@ -114,6 +162,10 @@ export function TaskIcon({ task, s, size = 72 }: { task: TaskCategory; s: S; siz
           </g>
         </>
       )}
+      {task === 'balance' && <LabIcon mode="mode_f_seesaw" c={c} />}
+      {task === 'arrays' && <LabIcon mode="mode_e_tiles" c={c} />}
+      {task === 'doubling' && <LabIcon mode="mode_g_doubling" c={c} />}
+      {task === 'period' && <LabIcon mode="mode_h_trains" c={c} />}
       {task === 'borrow' && (
         <>
           <g transform="translate(4 18)">

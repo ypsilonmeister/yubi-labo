@@ -4,6 +4,7 @@ import { ParityMode } from './parity/ParityMode';
 import { RodsMode } from './rods/RodsMode';
 import { TenFrameMode } from './tenframe/TenFrameMode';
 import { ExchangeMode } from './exchange/ExchangeMode';
+import { TilesMode } from './tiles/TilesMode';
 
 let done = false;
 export function registerModes() {
@@ -13,4 +14,6 @@ export function registerModes() {
   GameRegistry.register(RodsMode);
   GameRegistry.register(TenFrameMode);
   GameRegistry.register(ExchangeMode);
+  // v2.3 じっけんラボ（§19）
+  GameRegistry.register(TilesMode);
 }

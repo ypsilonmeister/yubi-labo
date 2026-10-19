@@ -69,12 +69,14 @@ export function HomeScreen(props: {
     <div className="screen">
       {props.score && <PlantCard points={props.score.points} onRanking={props.onRanking} />}
       <div className="tile-grid home-grid">
-        {GameRegistry.all().map((p) => (
-          <button key={p.id} type="button" className="tile tile-mode" onClick={() => props.onMode(p.id)} aria-label={p.title}>
-            <ModeIcon mode={p.id} s={props.s} />
-            <span>{p.title}</span>
-          </button>
-        ))}
+        {GameRegistry.all()
+          .filter((p) => p.group !== 'lab')
+          .map((p) => (
+            <button key={p.id} type="button" className="tile tile-mode" onClick={() => props.onMode(p.id)} aria-label={p.title}>
+              <ModeIcon mode={p.id} s={props.s} />
+              <span>{p.title}</span>
+            </button>
+          ))}
         {props.learning.craftBookEnabled && (
           <button type="button" className="tile tile-book" onClick={props.onCraft} aria-label="クラフト ずかん">
             <span className="book-icon" aria-hidden>
@@ -84,6 +86,21 @@ export function HomeScreen(props: {
           </button>
         )}
       </div>
+      {GameRegistry.all().some((p) => p.group === 'lab') && (
+        <>
+          <h2 className="home-section">🔬 じっけん ラボ</h2>
+          <div className="tile-grid home-grid">
+            {GameRegistry.all()
+              .filter((p) => p.group === 'lab')
+              .map((p) => (
+                <button key={p.id} type="button" className="tile tile-mode tile-lab" onClick={() => props.onMode(p.id)} aria-label={p.title}>
+                  <ModeIcon mode={p.id} s={props.s} />
+                  <span>{p.title}</span>
+                </button>
+              ))}
+          </div>
+        </>
+      )}
       <div className="home-foot">
         <button type="button" className="btn-soft" onClick={props.onEnd}>
           きょうは おしまい
@@ -159,7 +176,7 @@ export function ModeScreen(props: { s: S; mode: ModeId; onPlay: (task: TaskCateg
           <ModeIcon mode={props.mode} s={props.s} size={64} />
           <span>{STAGE_LABEL.explore}</span>
         </button>
-        {plugin.supportedTasks.map((t) => (
+        {plugin.supportedTasks.filter((t) => stagesOf(t).length > 0).map((t) => (
           <div key={t} className={`tile-wrap${openTask === t ? ' open' : ''}`}>
             <button type="button" className="tile" onClick={() => tapTask(t)} aria-expanded={openTask === t}>
               <TaskIcon task={t} s={props.s} />

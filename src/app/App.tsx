@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { Store } from '../core/storage/db';
 import { SessionEngine } from '../core/engine/SessionEngine';
 import type { PickContext } from '../core/engine/questions';
-import type { AppData, LearningStage, ModeId, TaskCategory } from '../core/types';
+import type { AppData, CraftKind, LearningStage, ModeId, TaskCategory } from '../core/types';
+import { stepsOf } from '../core/engine/progression';
 import { isoWithOffset, jstDateKey } from '../core/time';
 import { HomeScreen, ModeScreen, RankingScreen, StartScreen } from './screens/HomeScreens';
 import { ranking, totalPoints } from '../core/score';
@@ -73,7 +74,10 @@ function Loaded({ store }: { store: Store }) {
   /** v2.2: ホームでモードをタップしたら、おまかせ進行ですぐ始める（点が有効ならラウンドで） */
   const startMode = (mode: ModeId) => {
     if (learning.freeChoice) return setScreen({ name: 'mode', mode });
-    play(newRoundSpec({ mode, task: GameRegistry.get(mode).supportedTasks[0], stage: 'construct', auto: true }));
+    const plugin = GameRegistry.get(mode);
+    // 決定点のない「じっけんラボ」は、自由探索（サンドボックス）としてすぐ始める
+    if (!stepsOf(plugin).length) return play({ mode, task: plugin.supportedTasks[0], stage: 'explore' });
+    play(newRoundSpec({ mode, task: plugin.supportedTasks[0], stage: 'construct', auto: true }));
   };
   const newRoundSpec = (spec: PlaySpec): PlaySpec => ({
     ...spec,
@@ -81,8 +85,8 @@ function Loaded({ store }: { store: Store }) {
     round: learningRef.current.scoreEnabled ? { id: uid('r-'), length: learningRef.current.roundLength } : undefined,
   });
   const points = learning.scoreEnabled ? totalPoints(data) : 0;
-  const onCraft = (value: number, parts: number[], mode: ModeId) => {
-    store.addCraft({ value, parts, firstMadeAt: isoWithOffset(), modeId: mode });
+  const onCraft = (value: number, parts: number[], mode: ModeId, kind?: CraftKind) => {
+    store.addCraft({ value, parts, firstMadeAt: isoWithOffset(), modeId: mode, ...(kind && kind !== 'sum' ? { kind } : {}) });
   };
 
   const saveProfile = (p: AppData['profile']) => {

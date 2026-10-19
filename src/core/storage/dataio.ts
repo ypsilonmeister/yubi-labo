@@ -7,8 +7,8 @@ import { OPERATION_OF, expectedValueOf, questionId, strategyFor } from '../engin
 import { computeMetrics } from '../engine/metrics';
 import { isoWithOffset, jstDateKey } from '../time';
 
-export const MODE_IDS: ModeId[] = ['mode_a_parity', 'mode_b_rods', 'mode_c_tenframe', 'mode_d_exchange'];
-export const TASKS: TaskCategory[] = ['subitizing_678', 'numeral_quantity', 'synthesis_5', 'complement_10', 'carry_over', 'borrow'];
+export const MODE_IDS: ModeId[] = ['mode_a_parity', 'mode_b_rods', 'mode_c_tenframe', 'mode_d_exchange', 'mode_e_tiles', 'mode_f_seesaw', 'mode_g_doubling', 'mode_h_trains'];
+export const TASKS: TaskCategory[] = ['subitizing_678', 'numeral_quantity', 'synthesis_5', 'complement_10', 'carry_over', 'borrow', 'arrays', 'balance', 'doubling', 'period'];
 
 export function emptyAppData(): AppData {
   return {
@@ -138,8 +138,10 @@ export function mergeData(current: AppData, incoming: AppData): AppData {
   return { ...current, sessions, craftBook: mergeCraft(current.craftBook ?? [], incoming.craftBook ?? []) };
 }
 
-export function craftKey(e: Pick<CraftEntry, 'value' | 'parts'>): string {
-  return `${e.value}=${e.parts.join('+')}`;
+export function craftKey(e: Pick<CraftEntry, 'value' | 'parts' | 'kind'>): string {
+  // sum（v2.1 の記録には kind がない）は前と同じキー。ほかの種類は種類名を前につけて区別する
+  const head = e.kind && e.kind !== 'sum' ? `${e.kind}:` : '';
+  return `${head}${e.value}=${e.parts.join('+')}`;
 }
 
 export function mergeCraft(a: CraftEntry[], b: CraftEntry[]): CraftEntry[] {

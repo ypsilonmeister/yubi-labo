@@ -1,7 +1,7 @@
 // セッション（1回の着席）＞ 試行（1問）の記録を受け持つ（§11.1）。
 // §10: 時刻はエンジンだけが付与する。complete() は各問1回のみ有効。
 
-import type { AccessibilitySettings, GameContext, GameEvent, LearningSettings, ModeId, Question, Session, Trial, TrialResult } from '../types';
+import type { AccessibilitySettings, CraftKind, GameContext, GameEvent, LearningSettings, ModeId, Question, Session, Trial, TrialResult } from '../types';
 import type { Store } from '../storage/db';
 import { isoWithOffset, timeOfDayOf, uid } from '../time';
 import { validateQuestion } from './questions';
@@ -68,7 +68,7 @@ export class SessionEngine {
   }
 
   /** 試行を始める。出題前に §9.0 の範囲などを検証する */
-  startTrial(modeId: ModeId, question: Question, onCraft: (value: number, parts: number[]) => void, roundId?: string): TrialHandle {
+  startTrial(modeId: ModeId, question: Question, onCraft: (value: number, parts: number[], kind?: CraftKind) => void, roundId?: string): TrialHandle {
     const errs = validateQuestion(question);
     if (errs.length) throw new Error(`問題が不正です: ${errs.join(' / ')}`);
     if (this.current && !this.current.done) this.finishTrial(this.current, null, 'abandoned');
@@ -101,8 +101,8 @@ export class SessionEngine {
         if (slot.done) return; // 各問1回のみ
         engine.finishTrial(slot, result, null);
       },
-      craft(value, parts) {
-        if (engine.getLearning().craftBookEnabled) onCraft(value, parts);
+      craft(value, parts, kind) {
+        if (engine.getLearning().craftBookEnabled) onCraft(value, parts, kind);
       },
       get settings() {
         return engine.getSettings();
