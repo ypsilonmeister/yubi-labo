@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { POINTS, nextRank, rankOf, ranking, roundsOf, totalPoints, trialPoints } from '../core/score';
+import { POINTS, POINTS_V1, RANKS, legacyTotalPoints, nextRank, rankOf, ranking, roundsOf, totalPoints, trialPoints, trialPointsV1 } from '../core/score';
 import { currentStep, stepMastered, stepsOf, type ModeShape } from '../core/engine/progression';
 import { DEFAULT_SETTINGS } from '../core/settings';
 import type { LearningStage, Session, TaskCategory, Trial, TrialResult } from '../core/types';
@@ -37,41 +37,65 @@ function trial(o: { task?: TaskCategory; stage?: LearningStage; result?: Partial
 }
 const session = (trials: Trial[], startedAt = '2026-10-17T10:00:00+09:00'): Session => ({ sessionId: `s${seq++}`, startedAt, timeOfDay: 'morning', trials });
 
-describe('てんすう（v2.2）', () => {
-  it('点は助けの量で決まり、0より下にならない', () => {
-    expect(trialPoints(trial({}))).toBe(POINTS.independent);
-    expect(trialPoints(trial({ result: { assistanceLevel: 'after_hint', mistakeCount: 3 } }))).toBe(POINTS.after_hint);
-    expect(trialPoints(trial({ result: { assistanceLevel: 'after_demo' } }))).toBe(POINTS.after_demo);
+describe('てんすう（v2.5）', () => {
+  it('1回目でぴったりが一番高く、ためしてから当たると低い。0より下にはならない', () => {
+    expect(trialPoints(trial({}))).toBe(POINTS.firstTry);
+    expect(trialPoints(trial({ result: { mistakeCount: 2 } }))).toBe(POINTS.foundByTrying);
+    expect(trialPoints(trial({ result: { assistanceLevel: 'after_hint' } }))).toBe(POINTS.afterHintFirstTry);
+    expect(trialPoints(trial({ result: { assistanceLevel: 'after_hint', mistakeCount: 3 } }))).toBe(POINTS.foundByTrying);
+    expect(trialPoints(trial({ result: { assistanceLevel: 'after_demo' } }))).toBe(POINTS.afterDemo);
     expect(trialPoints(trial({ result: { assistanceLevel: 'not_completed', correctWithoutHint: false } }))).toBe(POINTS.tried);
     expect(trialPoints(trial({ result: { outcome: 'skipped', assistanceLevel: 'not_completed' } }))).toBe(0);
     expect(trialPoints(trial({ result: { outcome: 'abandoned', assistanceLevel: 'not_completed' } }))).toBe(0);
     expect(trialPoints(trial({ result: null }))).toBe(0);
+    expect(POINTS.firstTry).toBeGreaterThan(POINTS.foundByTrying);
   });
 
-  it('間違いの回数で点が減らない（ヒントなしなら満点）', () => {
-    expect(trialPoints(trial({ result: { mistakeCount: 5, correctWithoutHint: true } }))).toBe(POINTS.independent);
+  it('前の付け方（v2.2〜v2.4）では、ためしてから当たっても満点だった', () => {
+    expect(trialPointsV1(trial({ result: { mistakeCount: 5 } }))).toBe(POINTS_V1.independent);
   });
 
-  it('観察は見おわると少し、別の世界でもできるとおまけ', () => {
+  it('観察は見おわると少し、別の世界でも1回目でぴったりならおまけ', () => {
     expect(trialPoints(trial({ stage: 'observe', result: { outcome: 'explored', assistanceLevel: 'not_completed' } }))).toBe(POINTS.observed);
     expect(trialPoints(trial({ stage: 'explore', result: { outcome: 'explored', assistanceLevel: 'not_completed' } }))).toBe(0);
     // 途中で離れた観察は点にならない
     expect(trialPoints(trial({ stage: 'observe', left: true, result: { outcome: 'explored', assistanceLevel: 'not_completed' } }))).toBe(0);
-    expect(trialPoints(trial({ stage: 'transfer' }))).toBe(POINTS.independent + POINTS.transferBonus);
+    expect(trialPoints(trial({ stage: 'transfer' }))).toBe(POINTS.firstTry + POINTS.transferBonus);
+    expect(trialPoints(trial({ stage: 'transfer', result: { mistakeCount: 1 } }))).toBe(POINTS.foundByTrying);
   });
 
-  it('合計点は試行の点と図鑑の数から計算する', () => {
-    const data = { sessions: [session([trial({}), trial({ result: { assistanceLevel: 'after_hint' } })])], craftBook: [{ value: 13, parts: [8, 5], firstMadeAt: 'x', modeId: 'mode_c_tenframe' as const }] };
-    expect(totalPoints(data)).toBe(POINTS.independent + POINTS.after_hint + POINTS.newCraft);
+  it('合計点は試行の点と図鑑の数から計算する（図鑑の点に上限はない）', () => {
+    const book = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, parts: [i + 1], firstMadeAt: '2026-10-20T10:00:00+09:00', modeId: 'mode_e_tiles' as const, kind: 'prime' as const }));
+    const data = { sessions: [session([trial({}), trial({ result: { assistanceLevel: 'after_hint' } })])], craftBook: book };
+    expect(totalPoints(data)).toBe(POINTS.firstTry + POINTS.afterHintFirstTry + 12 * POINTS.newCraft);
   });
 
-  it('ランクは合計点で上がり、下がらない並び', () => {
+  it('基準点: 付け方を変える前の点は下がらず、それ以後の記録だけ新しい付け方で足す', () => {
+    const before = trial({ result: { mistakeCount: 4 } }); // 2026-10-17
+    const after = { ...trial({ result: { mistakeCount: 4 } }), startedAt: '2026-10-21T10:00:00+09:00' };
+    const oldCraft = { value: 6, parts: [2, 3], firstMadeAt: '2026-10-17T10:00:00+09:00', modeId: 'mode_e_tiles' as const, kind: 'product' as const };
+    const newCraft = { ...oldCraft, parts: [3, 2], firstMadeAt: '2026-10-21T10:00:00+09:00' };
+    const before_ = { sessions: [session([before])], craftBook: [oldCraft] };
+    const legacy = legacyTotalPoints(before_);
+    expect(legacy).toBe(POINTS_V1.independent + POINTS_V1.newCraft);
+    const baseline = { points: legacy, at: '2026-10-20T12:00:00+09:00' };
+    // 基準点を作った直後は、点がそのまま
+    expect(totalPoints(before_, baseline)).toBe(legacy);
+    // そのあとの記録は v2.5 の点で足される
+    const later = { sessions: [session([before, after])], craftBook: [oldCraft, newCraft] };
+    expect(totalPoints(later, baseline)).toBe(legacy + POINTS.foundByTrying + POINTS.newCraft);
+  });
+
+  it('ランクは合計点で上がり、もりの先は ぎんが まで', () => {
     expect(rankOf(0).name).toBe('たね');
     expect(rankOf(29).level).toBe(0);
     expect(rankOf(30).level).toBe(1);
-    expect(rankOf(99999).name).toBe('もり');
+    expect(rankOf(2000).name).toBe('もり');
+    expect(nextRank(2000)?.name).toBe('おおきな もり');
+    expect(rankOf(999999).name).toBe('ぎんが');
     expect(nextRank(0)?.min).toBe(30);
-    expect(nextRank(99999)).toBeNull();
+    expect(nextRank(999999)).toBeNull();
+    for (let i = 1; i < RANKS.length; i++) expect(RANKS[i].min).toBeGreaterThan(RANKS[i - 1].min);
   });
 
   it('ラウンド: 中断した試行は数えず、さいごまでやったラウンドだけがランキングに入る', () => {
@@ -80,9 +104,16 @@ describe('てんすう（v2.2）', () => {
     const best = Array.from({ length: 10 }, () => trial({ roundId: 'r3' }));
     const sessions = [session([...full, ...short]), session(best, '2026-10-18T10:00:00+09:00')];
     const rounds = roundsOf(sessions);
-    expect(rounds.find((r) => r.roundId === 'r1')).toMatchObject({ count: 10, points: 8 * 10 + 2 * 6 });
+    expect(rounds.find((r) => r.roundId === 'r1')).toMatchObject({ count: 10, points: 8 * POINTS.firstTry + 2 * POINTS.afterHintFirstTry });
     expect(rounds.find((r) => r.roundId === 'r2')).toMatchObject({ count: 1 });
     expect(ranking(sessions, 10).map((r) => r.roundId)).toEqual(['r3', 'r1']);
+  });
+
+  it('ラウンド: 基準点より前のラウンドは前の付け方の点で残る', () => {
+    const guessed = Array.from({ length: 10 }, () => trial({ roundId: 'old', result: { mistakeCount: 2 } }));
+    const sessions = [session(guessed)];
+    expect(roundsOf(sessions, { points: 0, at: '2026-10-20T00:00:00+09:00' })[0].points).toBe(10 * POINTS_V1.independent);
+    expect(roundsOf(sessions)[0].points).toBe(10 * POINTS.foundByTrying);
   });
 });
 

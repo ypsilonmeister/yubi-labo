@@ -8,7 +8,7 @@ import type { AppData, CraftKind, LearningStage, ModeId, TaskCategory } from '..
 import { stepsOf } from '../core/engine/progression';
 import { isoWithOffset, jstDateKey } from '../core/time';
 import { HomeScreen, ModeScreen, RankingScreen, StartScreen } from './screens/HomeScreens';
-import { ranking, totalPoints } from '../core/score';
+import { legacyTotalPoints, ranking, totalPoints } from '../core/score';
 import { uid } from '../core/time';
 import { PlayScreen, type PlaySpec } from './screens/PlayScreen';
 import { CraftBookScreen } from './screens/CraftBookScreen';
@@ -84,7 +84,13 @@ function Loaded({ store }: { store: Store }) {
     question: undefined,
     round: learningRef.current.scoreEnabled ? { id: uid('r-'), length: learningRef.current.roundLength } : undefined,
   });
-  const points = learning.scoreEnabled ? totalPoints(data) : 0;
+  // v2.5: 点の付け方を変える前の点は基準点にまとめる（1回だけ保存。それまでの点・ランクを下げない）
+  const baseline = data.profile.scoreBaseline ?? null;
+  useEffect(() => {
+    if (!store.data.profile.scoreBaseline) void store.saveProfile({ ...store.data.profile, scoreBaseline: { points: legacyTotalPoints(store.data), at: isoWithOffset() } });
+  }, [store, baseline]);
+  const pointsOf = (d: AppData) => (d.profile.scoreBaseline ? totalPoints(d, d.profile.scoreBaseline) : legacyTotalPoints(d));
+  const points = learning.scoreEnabled ? pointsOf(data) : 0;
   const onCraft = (value: number, parts: number[], mode: ModeId, kind?: CraftKind) => {
     store.addCraft({ value, parts, firstMadeAt: isoWithOffset(), modeId: mode, ...(kind && kind !== 'sum' ? { kind } : {}) });
   };
@@ -131,14 +137,15 @@ function Loaded({ store }: { store: Store }) {
           learning={learning}
           pickContext={pickContext}
           sessions={() => store.data.sessions}
-          totalPoints={() => totalPoints(store.data)}
+          totalPoints={() => pointsOf(store.data)}
+          baseline={baseline}
           onNewRound={(spec) => play(newRoundSpec(spec))}
           onCraft={onCraft}
           onExit={() => setScreen(learning.freeChoice ? { name: 'mode', mode: screen.spec.mode } : { name: 'home' })}
           onTransfer={play}
         />
       )}
-      {screen.name === 'ranking' && <RankingScreen list={ranking(data.sessions, learning.roundLength, 10)} points={points} onBack={() => setScreen({ name: 'home' })} />}
+      {screen.name === 'ranking' && <RankingScreen list={ranking(data.sessions, learning.roundLength, 10, baseline)} points={points} onBack={() => setScreen({ name: 'home' })} />}
       {screen.name === 'craft' && <CraftBookScreen entries={data.craftBook ?? []} s={settings} onBack={() => setScreen({ name: 'home' })} />}
       {screen.name === 'end' && (
         <EndScreen

@@ -209,6 +209,8 @@ export interface AppData {
     playerLabel: string;
     settings: AccessibilitySettings;
     learning?: LearningSettings; // 実装拡張
+    /** 実装拡張（v2.5）: 点の付け方を変えたときの基準点（それまでの点が下がらないように。score.ts） */
+    scoreBaseline?: { points: number; at: string };
   };
   sessions: Session[];
   craftBook?: CraftEntry[];

@@ -24,7 +24,12 @@ export function withDefaults(profile: Partial<AppData['profile']> | undefined): 
     playerLabel: typeof profile?.playerLabel === 'string' ? profile.playerLabel : 'プレイヤー',
     settings: { ...DEFAULT_SETTINGS, ...(profile?.settings ?? {}) } as AccessibilitySettings,
     learning: { ...DEFAULT_LEARNING, ...(profile?.learning ?? {}) } as LearningSettings,
+    ...(validBaseline(profile?.scoreBaseline) ? { scoreBaseline: profile!.scoreBaseline } : {}),
   };
+}
+
+function validBaseline(b: unknown): b is { points: number; at: string } {
+  return !!b && typeof (b as { points: unknown }).points === 'number' && typeof (b as { at: unknown }).at === 'string' && !Number.isNaN(new Date((b as { at: string }).at).getTime());
 }
 
 // ---------- 匿名化 ----------

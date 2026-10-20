@@ -1526,3 +1526,10 @@ button:disabled {
   border-color: var(--ink);
   background: #fff8e6;
 }
+
+/* v2.5: 1回目でぴったりのときの点 */
+.points-chip.first-try {
+  background: #fff3cf;
+  border-color: #e0a63a;
+  color: #8a5a00;
+}
