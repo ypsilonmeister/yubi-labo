@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AccessibilitySettings, GameContext, LearningSettings, LearningStage, CraftKind, ModeId, Question, Session, TaskCategory, Trial } from '../../core/types';
 import { currentStep } from '../../core/engine/progression';
-import { allTrials, countsInRound, rankOf, ranking, trialPoints } from '../../core/score';
+import { allTrials, countsInRound, isFirstTry, rankOf, ranking, trialPoints, type ScoreBaseline } from '../../core/score';
 import { Plant } from '../Plant';
 import { RankingList } from './HomeScreens';
 import { GameRegistry } from '../../core/registry';
@@ -38,13 +38,15 @@ interface Props {
   sessions: () => Session[];
   /** これまでの合計点（v2.2） */
   totalPoints: () => number;
+  /** v2.5: 点の付け方を変えたときの基準点（ランキングで、それより前のラウンドは前の付け方で数える） */
+  baseline: ScoreBaseline | null;
   onNewRound: (spec: PlaySpec) => void;
   onCraft: (value: number, parts: number[], mode: ModeId, kind?: CraftKind) => void;
   onExit: () => void;
   onTransfer: (spec: PlaySpec) => void;
 }
 
-export function PlayScreen({ spec, engine, settings, learning, pickContext, sessions, totalPoints, onNewRound, onCraft, onExit, onTransfer }: Props) {
+export function PlayScreen({ spec, engine, settings, learning, pickContext, sessions, totalPoints, baseline, onNewRound, onCraft, onExit, onTransfer }: Props) {
   const plugin = GameRegistry.get(spec.mode);
   const host = useRef<HTMLDivElement>(null);
   const handle = useRef<TrialHandle | null>(null);
@@ -238,8 +240,8 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
       ) : (
         <nav className="after" aria-label="つぎに すること">
           {spec.round && lastPoints > 0 && (
-            <span className="points-chip" aria-label={`${lastPoints} てん`}>
-              +{lastPoints} てん
+            <span className={`points-chip${done && isFirstTry(done) ? ' first-try' : ''}`} aria-label={`${lastPoints} てん`}>
+              {done && isFirstTry(done) ? 'いっぱつ！ ' : ''}+{lastPoints} てん
             </span>
           )}
           {question && !roundOver && (
@@ -289,7 +291,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
           points={roundPoints}
           before={pointsAtStart.current}
           after={totalPoints()}
-          list={ranking(sessions(), spec.round.length)}
+          list={ranking(sessions(), spec.round.length, 5, baseline)}
           onAgain={() => onNewRound({ mode: spec.mode, task: spec.task, stage: spec.stage, auto: spec.auto, round: { id: '', length: spec.round!.length } })}
           onExit={onExit}
         />

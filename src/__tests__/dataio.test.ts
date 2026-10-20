@@ -151,3 +151,12 @@ describe('v2.3 図鑑の種類', () => {
     expect(merged).toHaveLength(3);
   });
 });
+
+describe('v2.5 基準点', () => {
+  it('正しい基準点は読み込みで残り、こわれた基準点は捨てる', () => {
+    const ok = withDefaults({ playerLabel: 'x', settings: DEFAULT_SETTINGS, learning: DEFAULT_LEARNING, scoreBaseline: { points: 2100, at: '2026-10-20T12:00:00+09:00' } });
+    expect(ok.scoreBaseline).toEqual({ points: 2100, at: '2026-10-20T12:00:00+09:00' });
+    const bad = withDefaults({ playerLabel: 'x', settings: DEFAULT_SETTINGS, learning: DEFAULT_LEARNING, scoreBaseline: { points: 'x', at: 'y' } } as never);
+    expect(bad.scoreBaseline).toBeUndefined();
+  });
+});
