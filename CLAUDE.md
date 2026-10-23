@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-The repository (still named `yubi-labo`, deployed at `/yubi-labo/`) now hosts **さんすうクラフト**, an implementation of the math-craft spec v2.1 (`docs/SPEC.md`). The previous app (ゆびラボ: maze/kanji/moji/hand tracking) was fully cleared by the child and removed. All four modes (A 偶奇パズル, B カラーロッド, C 10フレーム, D 両替商), the craft book, and the parent dashboard are implemented. v2.2 (SPEC §18) added direct manipulation, auto progression with adaptive skip (`src/core/engine/progression.ts`), and scores/ranks/rounds. v2.3 (SPEC §19) added the じっけんラボ modes E–H (`src/modes/tiles|seesaw|doubling|trains`, `group: 'lab'`) and craft-book kinds. v2.4 (SPEC §20) replaced slimes with tiles and added numeral labels (`numberLabels`), at the child's request. v2.5 (SPEC §21) rescored guessed answers and added ranks beyond もり. Implementation-time judgment calls are recorded in `docs/SPEC.md` §17.
+The repository (still named `yubi-labo`, deployed at `/yubi-labo/`) now hosts **さんすうクラフト**, an implementation of the math-craft spec (`docs/SPEC.md`, consolidated as v2.6: §§0–14 are the normative text; §§17–21 are historical addenda whose rules have been merged into the body, and the stored-data `schemaVersion` stays "2.1" for compatibility). The previous app (ゆびラボ: maze/kanji/moji/hand tracking) was fully cleared by the child and removed. All four modes (A 偶奇パズル, B カラーロッド, C 10フレーム, D 両替商), the craft book, and the parent dashboard are implemented. v2.2 (SPEC §18) added direct manipulation, auto progression with adaptive skip (`src/core/engine/progression.ts`), and scores/ranks/rounds. v2.3 (SPEC §19) added the じっけんラボ modes E–H (`src/modes/tiles|seesaw|doubling|trains`, `group: 'lab'`) and craft-book kinds. v2.4 (SPEC §20) replaced slimes with tiles and added numeral labels (`numberLabels`), at the child's request. v2.5 (SPEC §21) rescored guessed answers and added ranks beyond もり. Implementation-time judgment calls are recorded in `docs/SPEC.md` §17.
 
 Commands:
 
@@ -13,7 +13,7 @@ Commands:
 - `npm run build` — `tsc --noEmit` + Vite production build. Run both `npm test` and `npm run build` before pushing.
 - **Deploy**: pushing to `main` publishes to GitHub Pages via `.github/workflows/deploy.yml` (runs `npm test`, then builds with `GITHUB_PAGES` set so Vite `base` is `/yubi-labo/`). Treat `main` as live for the child.
 
-`docs/SPEC.md` (Japanese) is the single source of truth. **Part II (§7 onward) overrides Part I**; never implement from Part I directly (see §15). Every design decision traces back to one specific child; do not treat this as a generic kids' app.
+`docs/SPEC.md` (Japanese) is the single source of truth. **Part II (§7 onward) overrides Part I**; never implement from Part I directly (see §15). Within Part II, §§7–14 override the historical addenda (§§17–21). Every design decision traces back to one specific child; do not treat this as a generic kids' app.
 
 ## Privacy (non-negotiable)
 
