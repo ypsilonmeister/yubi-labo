@@ -14,7 +14,7 @@ import { OUTLINE, SLOT_STROKE } from '../../core/colors';
 import { choicesOf } from '../../core/engine/questions';
 import type { AccessibilitySettings } from '../../core/types';
 import { canHalve, chainOf, digits5, halvingPlan, mismatchPlaces, narrowHalving, sidesAfter } from '../../core/math/halving';
-import { columnHeight, Columns, columnsWidth, PlaceDividers } from './Blocks';
+import { columnHeight, Columns, columnsWidth, PlaceDividers } from '../shared/PlaceBlocks';
 
 type S = Readonly<AccessibilitySettings>;
 

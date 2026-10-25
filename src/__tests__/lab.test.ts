@@ -1,6 +1,6 @@
 // v2.3 じっけんラボ（§19）の純粋関数
 import { describe, expect, it } from 'vitest';
-import { arrange, gaps, isPrime, isRectangle, primeFound, rowsToTry, TILE_MAX } from '../modes/tiles/scenes';
+import { arrange, gaps, isPrime, isRectangle, primeFound, rowsToTry, TILE_MAX } from '../core/math/tiles';
 
 describe('v2.3 タイル・リアクター', () => {
   it('並べ方: 列ごとに上から。r = 2 は偶奇プレートと同じ（奇数は最後の列の上だけ）', () => {
