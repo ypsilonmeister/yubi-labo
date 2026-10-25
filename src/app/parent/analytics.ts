@@ -158,6 +158,9 @@ export function heatAxis(task: TaskCategory, synthesisMax: number): HeatAxis {
       return { rows: range(5, 9), cols: null, rowLabel: '数', colLabel: '', valid: () => true, key: (a) => `${a}` };
     case 'balance':
       return { rows: range(6, 18), cols: range(1, 9), rowLabel: '左の重さ', colLabel: '右にある重り', valid: (t, c) => c !== null && t - c >= 1 && t - c <= 9, key: (t, c) => `${t},${c}` };
+    case 'halving':
+      // v2.7: 出発値が 281 通りあり、表にならない（課題別の集計表で見る）
+      return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };
     case 'arrays':
     case 'doubling':
     case 'period':

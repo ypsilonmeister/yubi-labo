@@ -44,6 +44,12 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
     case 'doubling':
     case 'period':
       return [];
+    case 'halving': {
+      // v2.7: 出題中は「〜の はんぶん は ？」だけ。答えは試行が終わってから
+      if (!revealed) return [`${a} の はんぶん は ？`];
+      const h = a / 2;
+      return [`${h} と ${h} で ${a}`, `${a} の はんぶん は ${h}`];
+    }
   }
 }
 

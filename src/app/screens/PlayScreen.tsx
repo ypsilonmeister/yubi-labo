@@ -11,7 +11,7 @@ import { Plant } from '../Plant';
 import { RankingList } from './HomeScreens';
 import { GameRegistry } from '../../core/registry';
 import type { SessionEngine, TrialHandle } from '../../core/engine/SessionEngine';
-import { exploreQuestion, generateQuestion, retarget, type PickContext } from '../../core/engine/questions';
+import { continuationsOf, exploreQuestion, generateQuestion, retarget, type PickContext } from '../../core/engine/questions';
 import { NumberView } from '../NumberView';
 import { ModeIcon } from '../icons';
 import { STAGE_LABEL, taskLabel } from '../labels';
@@ -168,6 +168,9 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   const roundPoints = roundTrials.reduce((a, t) => a + trialPoints(t), 0);
   const roundOver = !!spec.round && roundTrials.length >= spec.round.length;
   const lastPoints = done && spec.round ? trialPoints(done) : 0;
+  // v2.7: 連続する課題（はんぶんチャレンジ）は、終わったあとの選び方を課題が決める。自動では進めない
+  const conts = useMemo(() => (done ? continuationsOf(done, learningRef.current) : null), [done]);
+  const chained = !!conts;
 
   return (
     <div className="play">
@@ -252,13 +255,25 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
                 load({ ...question, learningStage: question.learningStage === 'revisit' || question.learningStage === 'transfer' ? 'construct' : question.learningStage })
               }
             >
-              もういちど
+              {chained ? 'この かずで もういちど' : 'もういちど'}
             </button>
           )}
           {roundOver ? (
             <button type="button" className="btn-main" onClick={() => setShowResult(true)}>
               けっかを みる
             </button>
+          ) : chained ? (
+            conts!.map((c) =>
+              c.key === 'more' && c.question ? (
+                <button key={c.key} type="button" className="btn-main" onClick={() => load(c.question!)}>
+                  もう はんぶん
+                </button>
+              ) : (
+                <button key={c.key} type="button" className={conts!.some((x) => x.key === 'more') ? 'btn-soft' : 'btn-main'} onClick={() => load(newQuestion(spec.stage))}>
+                  あたらしい 4けた
+                </button>
+              ),
+            )
           ) : (
             spec.stage !== 'explore' && (
               <button type="button" className="btn-main" onClick={() => load(newQuestion(spec.stage))}>

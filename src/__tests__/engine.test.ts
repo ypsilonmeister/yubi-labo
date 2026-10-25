@@ -14,6 +14,7 @@ const MODES: Record<ModeId, TaskCategory[]> = {
   mode_f_seesaw: ['balance'],
   mode_g_doubling: [],
   mode_h_trains: [],
+  mode_i_halving: ['halving'],
 };
 
 describe('出題エンジン（§9.0・§10）', () => {

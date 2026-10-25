@@ -1533,3 +1533,47 @@ button:disabled {
   border-color: #e0a63a;
   color: #8a5a00;
 }
+
+/* v2.7 はんぶんチャレンジ（§22） */
+.halving-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.halving-chain {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.halving-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.halving-chip b {
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 2px solid var(--line);
+  background: #fff;
+}
+
+.halving-chip.now b {
+  border-color: var(--ink);
+  border-width: 3px;
+}
+
+.halving-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--line);
+}
