@@ -1,0 +1,32 @@
+# プルリクエストの検証（公開はしない）。
+# deploy.yml と同じ npm test と npm run build を、main へ入れる前に GitHub 上で実行する。
+# Pages への公開は deploy.yml（main への push）だけが行う。
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          GITHUB_PAGES: 'true'
