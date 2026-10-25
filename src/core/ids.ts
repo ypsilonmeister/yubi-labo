@@ -16,6 +16,9 @@ export const ALL_TASKS: readonly TaskCategory[] = [
   'period',
   'halving',
   'shapes',
+  'shape_right',
+  'shape_triangle',
+  'shape_rectangle',
 ];
 
 export const ALL_MODES: readonly ModeId[] = [
@@ -29,4 +32,5 @@ export const ALL_MODES: readonly ModeId[] = [
   'mode_h_trains',
   'mode_i_halving',
   'mode_j_geoboard',
+  'mode_k_shapemake',
 ];

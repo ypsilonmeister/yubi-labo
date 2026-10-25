@@ -2,7 +2,7 @@
 // 色は TILE だけ。まっすぐな かどには、小さな四角の印をつける。
 
 import { OUTLINE, TILE } from '../../core/colors';
-import { SHAPE_CODE, type ShapeClass } from './shapes';
+import { SHAPE_CODE, type ShapeClass } from '../../core/math/shapes';
 
 const GLYPH: Record<number, { pts: [number, number][]; marks: number[] }> = {
   [SHAPE_CODE.triangle]: { pts: [[4, 28], [36, 28], [16, 5]], marks: [] },

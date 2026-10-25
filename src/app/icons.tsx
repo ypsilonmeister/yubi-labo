@@ -44,6 +44,7 @@ export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: nu
       )}
       {mode === 'mode_i_halving' && <HalvingIcon />}
       {mode === 'mode_j_geoboard' && <GeoboardIcon />}
+      {mode === 'mode_k_shapemake' && <GeoboardIcon triangle />}
       {(mode === 'mode_e_tiles' || mode === 'mode_f_seesaw' || mode === 'mode_g_doubling' || mode === 'mode_h_trains') && <LabIcon mode={mode} c={c} />}
       {mode === 'mode_d_exchange' && (
         <>
@@ -92,7 +93,7 @@ function HalvingIcon() {
 }
 
 /** v2.8 ジオボード: 点のならびと、ゴムでつくった長方形と、まっすぐな かどの印（色は使わない） */
-function GeoboardIcon() {
+function GeoboardIcon({ triangle }: { triangle?: boolean }) {
   const dots = [0, 1, 2, 3].flatMap((i) => [0, 1, 2, 3].map((j) => ({ x: 20 + i * 20, y: 20 + j * 20 })));
   return (
     <g>
@@ -100,8 +101,17 @@ function GeoboardIcon() {
       {dots.map((d, i) => (
         <circle key={i} cx={d.x} cy={d.y} r={3} fill="#8c7c64" />
       ))}
-      <path d="M20 40 L60 40 L60 80 L20 80 Z" fill={TILE.fill} fillOpacity={0.55} stroke={TILE.glow} strokeWidth={4} strokeLinejoin="round" />
-      <path d="M20 40 h8 v8 M60 40 v8 h-8" fill="none" stroke={OUTLINE} strokeWidth={2} />
+      {triangle ? (
+        <>
+          <path d="M20 80 L60 80 L20 40 Z" fill={TILE.fill} fillOpacity={0.55} stroke={TILE.glow} strokeWidth={4} strokeLinejoin="round" />
+          <path d="M20 72 h8 v8" fill="none" stroke={OUTLINE} strokeWidth={2} />
+        </>
+      ) : (
+        <>
+          <path d="M20 40 L60 40 L60 80 L20 80 Z" fill={TILE.fill} fillOpacity={0.55} stroke={TILE.glow} strokeWidth={4} strokeLinejoin="round" />
+          <path d="M20 40 h8 v8 M60 40 v8 h-8" fill="none" stroke={OUTLINE} strokeWidth={2} />
+        </>
+      )}
     </g>
   );
 }
@@ -206,7 +216,8 @@ export function TaskIcon({ task, s, size = 72 }: { task: TaskCategory; s: S; siz
       {task === 'doubling' && <LabIcon mode="mode_g_doubling" c={c} />}
       {task === 'period' && <LabIcon mode="mode_h_trains" c={c} />}
       {task === 'halving' && <HalvingIcon />}
-      {task === 'shapes' && <GeoboardIcon />}
+      {(task === 'shapes' || task === 'shape_right' || task === 'shape_rectangle') && <GeoboardIcon />}
+      {task === 'shape_triangle' && <GeoboardIcon triangle />}
       {task === 'borrow' && (
         <>
           <g transform="translate(4 18)">

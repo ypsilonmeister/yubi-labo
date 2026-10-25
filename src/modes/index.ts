@@ -10,6 +10,7 @@ import { DoublingMode } from './doubling/DoublingMode';
 import { TrainsMode } from './trains/TrainsMode';
 import { HalvingMode } from './halving/HalvingMode';
 import { GeoboardMode } from './geoboard/GeoboardMode';
+import { ShapeMakeMode } from './geoboard/ShapeMakeMode';
 
 let done = false;
 export function registerModes() {
@@ -28,4 +29,6 @@ export function registerModes() {
   GameRegistry.register(HalvingMode);
   // v2.8 ジオボード（§9.8）
   GameRegistry.register(GeoboardMode);
+  // v2.9 かたちづくり（§9.9）
+  GameRegistry.register(ShapeMakeMode);
 }

@@ -16,7 +16,11 @@ export type TaskCategory =
   // 実装拡張（v2.7・§22 はんぶんチャレンジ）
   | 'halving'
   // 実装拡張（v2.8・§9.8 ジオボード）
-  | 'shapes';
+  | 'shapes'
+  // 実装拡張（v2.9・§9.9 かたちづくり）
+  | 'shape_right'
+  | 'shape_triangle'
+  | 'shape_rectangle';
 
 export type ModeId =
   | 'mode_a_parity'
@@ -31,7 +35,9 @@ export type ModeId =
   // 実装拡張（v2.7・§22）
   | 'mode_i_halving'
   // 実装拡張（v2.8・§9.8）
-  | 'mode_j_geoboard';
+  | 'mode_j_geoboard'
+  // 実装拡張（v2.9・§9.9）
+  | 'mode_k_shapemake';
 
 // 実装拡張: "construct"（本課題）。§9.0 の表で「本課題・transfer」とされる決定点を、
 // 初回の表現で行う段階として明示する。transfer / revisit は同じ決定点を別表現・別日に行う。

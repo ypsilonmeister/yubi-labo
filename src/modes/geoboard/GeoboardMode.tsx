@@ -9,14 +9,14 @@ import { useTrialCore, type TrialCore } from '../kit/useTrialCore';
 import { ModeLayout } from '../kit/ui';
 import { ShapeGlyph } from './ShapeGlyph';
 import { Board } from './Board';
-import { canExtend, classify, countWord, discoveryOf, isRightAngle, rightCorners, SHAPE_CODE, SHAPE_NAME, type Pt } from './shapes';
+import { canExtend, classify, countWord, discoveryOf, isRightAngle, rightCorners, SHAPE_CODE, SHAPE_NAME, type Pt } from '../../core/math/shapes';
 
 interface Snapshot {
   path: Pt[];
   closed: boolean;
 }
 
-function ExploreTask({ core }: { core: TrialCore }) {
+export function ExploreTask({ core }: { core: TrialCore }) {
   const [path, setPath] = useState<Pt[]>([]);
   const [closed, setClosed] = useState(false);
   const [allowDiagonal, setAllowDiagonal] = useState(false);

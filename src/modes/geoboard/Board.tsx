@@ -4,7 +4,7 @@
 import { SLOT_STROKE, OUTLINE, TILE } from '../../core/colors';
 import type { AccessibilitySettings } from '../../core/types';
 import { successClass } from '../kit/ui';
-import { BOARD, boardPoints, canExtend, corners, isRightAngle, rightCorners, type Pt } from './shapes';
+import { BOARD, boardPoints, canExtend, corners, isRightAngle, rightCorners, type Pt } from '../../core/math/shapes';
 
 export const BOARD_W = 560;
 const M = 60;

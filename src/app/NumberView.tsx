@@ -44,6 +44,10 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
     case 'doubling':
     case 'period':
     case 'shapes':
+    case 'shape_right':
+    case 'shape_triangle':
+    case 'shape_rectangle':
+      // v2.9: かたちづくりに式はない
       return [];
     case 'halving': {
       // v2.7: 出題中は「〜の はんぶん は ？」だけ。答えは試行が終わってから

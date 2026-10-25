@@ -142,3 +142,74 @@ export function discoveryOf(poly: Pt[]): { value: number; parts: number[] } | nu
 
 const COUNT_WORD = ['ゼロ', 'ひとつ', 'ふたつ', 'みっつ', 'よっつ', 'いつつ', 'むっつ', 'ななつ', 'やっつ', 'ここのつ'];
 export const countWord = (n: number) => COUNT_WORD[n] ?? `${n}こ`;
+
+// ---------- K かたちづくり（v2.9・§9.9）: 目標と、最初の1辺 ----------
+
+/** 目標（課題ごとに1つ）。Question の operands の先頭に入れる記号 */
+export type ShapeGoal = 'right' | 'triangle' | 'rectangle';
+export const GOAL_CODE: Record<ShapeGoal, number> = { right: 1, triangle: 2, rectangle: 3 };
+export const GOAL_OF_CODE: Record<number, ShapeGoal> = { 1: 'right', 2: 'triangle', 3: 'rectangle' };
+
+/** 目標に合う形か。right は「かどがぜんぶ まっすぐ」、rectangle は せいほうけい も 長方形の仲間として受け入れる */
+export function meetsGoal(goal: ShapeGoal, poly: Pt[]): boolean {
+  const k = classify(poly);
+  if (goal === 'triangle') return k === 'triangle' || k === 'right_triangle';
+  return k === 'rectangle' || k === 'square';
+}
+
+/** 三角形は斜めの線がないと作れない。その課題は、斜めを最初からONにする */
+export const needsDiagonal = (goal: ShapeGoal) => goal === 'triangle';
+
+export type Edge = [Pt, Pt];
+
+/** 最初にかけておく1辺（たて・よこ、長さ 1〜3。a は左上側）。5×5 で 90 通り */
+export function givenEdges(): Edge[] {
+  const out: Edge[] = [];
+  for (let y = 0; y < BOARD; y++)
+    for (let x = 0; x < BOARD; x++)
+      for (let len = 1; len <= 3; len++) {
+        if (x + len < BOARD) out.push([{ x, y }, { x: x + len, y }]);
+        if (y + len < BOARD) out.push([{ x, y }, { x, y: y + len }]);
+      }
+  return out;
+}
+
+/**
+ * 見本の解（ヒント L3 の実演に使う）。最初の1辺の続きを、きまった手順で返す。
+ * - right / rectangle: 辺に垂直に 1 だけ（盤にはみ出すなら反対側へ）ふくらませた長方形
+ * - triangle: 辺の左（上）はしの真上（または真下）の点を頂点とする三角形（ななめの線を1本つかう）
+ * 返す点の並びは、最初の2点が与えられた辺で、とじるまえの輪（さいしょの点にもどる点は含まない）。
+ */
+export function solveShape(goal: ShapeGoal, edge: Edge): Pt[] {
+  const [a, b] = edge;
+  const horizontal = a.y === b.y;
+  const off = (v: number) => (v + 1 < BOARD ? 1 : -1);
+  if (goal === 'triangle') {
+    return horizontal ? [a, b, { x: a.x, y: a.y + off(a.y) }] : [a, b, { x: a.x + off(a.x), y: a.y }];
+  }
+  if (horizontal) {
+    const d = off(a.y);
+    return [a, b, { x: b.x, y: b.y + d }, { x: a.x, y: a.y + d }];
+  }
+  const d = off(a.x);
+  return [a, b, { x: b.x + d, y: b.y }, { x: a.x + d, y: a.y }];
+}
+
+/** 出題の operands = [目標の記号, x0, y0, x1, y1] */
+export function goalOperands(goal: ShapeGoal, e: Edge): number[] {
+  return [GOAL_CODE[goal], e[0].x, e[0].y, e[1].x, e[1].y];
+}
+
+export function parseGoalOperands(ops: number[]): { goal: ShapeGoal; edge: Edge } | null {
+  const goal = GOAL_OF_CODE[ops[0]];
+  if (!goal || ops.length !== 5) return null;
+  const [, x0, y0, x1, y1] = ops;
+  const inb = (v: number) => Number.isInteger(v) && v >= 0 && v < BOARD;
+  if (![x0, y0, x1, y1].every(inb)) return null;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = dx + dy;
+  const axis = (dx === 0) !== (dy === 0);
+  if (!axis || dx < 0 || dy < 0 || len < 1 || len > 3) return null;
+  return { goal, edge: [{ x: x0, y: y0 }, { x: x1, y: y1 }] };
+}
