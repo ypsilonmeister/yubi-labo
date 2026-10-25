@@ -6,9 +6,10 @@ import { DEFAULT_LEARNING, DEFAULT_SETTINGS } from '../settings';
 import { OPERATION_OF, expectedValueOf, questionId, strategyFor } from '../engine/questions';
 import { computeMetrics } from '../engine/metrics';
 import { isoWithOffset, jstDateKey } from '../time';
+import { ALL_MODES, ALL_TASKS } from '../ids';
 
-export const MODE_IDS: ModeId[] = ['mode_a_parity', 'mode_b_rods', 'mode_c_tenframe', 'mode_d_exchange', 'mode_e_tiles', 'mode_f_seesaw', 'mode_g_doubling', 'mode_h_trains'];
-export const TASKS: TaskCategory[] = ['subitizing_678', 'numeral_quantity', 'synthesis_5', 'complement_10', 'carry_over', 'borrow', 'arrays', 'balance', 'doubling', 'period'];
+export const MODE_IDS: readonly ModeId[] = ALL_MODES;
+export const TASKS: readonly TaskCategory[] = ALL_TASKS;
 
 export function emptyAppData(): AppData {
   return {

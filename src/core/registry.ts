@@ -1,10 +1,11 @@
 // §3.2 / §10 Game Mode Registry。登録時に ID 重複・対応課題・対応段階・必須メソッドを検証する
 
 import type { GameModePlugin, LearningStage, ModeId, TaskCategory } from './types';
+import { ALL_TASKS } from './ids';
 
 const REQUIRED_METHODS = ['mount', 'loadQuestion', 'showHint', 'undo', 'pause', 'resume', 'applySettings', 'destroy', 'stagesFor'] as const;
 const STAGES: LearningStage[] = ['explore', 'observe', 'predict', 'construct', 'transfer', 'revisit'];
-const TASKS: TaskCategory[] = ['subitizing_678', 'numeral_quantity', 'synthesis_5', 'complement_10', 'carry_over', 'borrow', 'arrays', 'balance', 'doubling', 'period'];
+const TASKS: readonly TaskCategory[] = ALL_TASKS;
 
 class Registry {
   private plugins = new Map<ModeId, GameModePlugin>();

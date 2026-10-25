@@ -1,6 +1,8 @@
-import type { AccessibilitySettings, LearningSettings, LearningStage, ModeId, Operation, Question, Strategy, TaskCategory } from '../types';
+import type { AccessibilitySettings, LearningSettings, LearningStage, ModeId, Operation, Question, Strategy, TaskCategory, Trial } from '../types';
 import { allBorrowPairs, allCarryPairs, isBorrowPair, isCarryPair } from '../math/tenframe';
 import { hasSameParityDistractor, makeDistractors, shuffle, type Rng } from '../math/choices';
+import { canHalve, halfOf, halvingDistractors, HALVING_MAX, pickStart, START_MAX, START_MIN, startValues } from '../math/halving';
+import { uid } from '../time';
 
 export const OPERATION_OF: Record<TaskCategory, Operation> = {
   subitizing_678: 'identify',
@@ -13,6 +15,7 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   balance: 'balance',
   doubling: 'scale',
   period: 'cycle',
+  halving: 'halve',
 };
 
 export function strategyFor(task: TaskCategory, mode: ModeId, settings: Readonly<AccessibilitySettings>): Strategy {
@@ -43,6 +46,9 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'period':
       // じっけんラボは自由探索のみ（expectedValue は null で出す）
       return operands[0] ?? 0;
+    case 'halving':
+      // v2.7: 整数の半分（奇数は出題しないので割り切れる）
+      return operands[0] / 2;
   }
 }
 
@@ -72,6 +78,8 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
     case 'doubling':
     case 'period':
       return a ?? 0;
+    case 'halving':
+      return a / 2;
   }
 }
 
@@ -82,6 +90,8 @@ function distractorRange(task: TaskCategory, stage: LearningStage): { min: numbe
 }
 
 export function distractorsFor(q: Pick<Question, 'taskType' | 'operands' | 'learningStage' | 'representation'>, count: number, rng: Rng): number[] {
+  // v2.7: 半分は、理由のある間違い（ひらかずに分けた・半分を2回・2倍）を候補にする（§22）
+  if (q.taskType === 'halving') return halvingDistractors(q.operands[0], count, rng);
   const v = decisionValue(q);
   const range = distractorRange(q.taskType, q.learningStage);
   return makeDistractors(v, count, { ...range, sameParity: q.taskType === 'subitizing_678' }, rng);
@@ -117,6 +127,9 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
     case 'doubling':
     case 'period':
       return [];
+    case 'halving':
+      // 新しい列の出発値（4けた・32の倍数）。続きの問題は nextInChain で作る
+      return startValues().map((n) => [n]);
   }
 }
 
@@ -138,6 +151,7 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   balance: 3,
   doubling: 0,
   period: 0,
+  halving: 5,
 };
 
 export interface GenerateOptions {
@@ -153,6 +167,7 @@ export interface GenerateOptions {
 /** 問題を1問つくる。本課題で前日以前に解いた問題を選んだときは learningStage を revisit にする */
 export function generateQuestion(o: GenerateOptions): Question {
   const rng = o.rng ?? Math.random;
+  if (o.task === 'halving') return newHalvingChain(o, rng);
   const all = candidateOperands(o.task, o.learning);
   const fresh = all.filter((ops) => !o.pick.recentIds.slice(-3).includes(questionId(o.task, ops)));
   const pool = fresh.length ? fresh : all;
@@ -197,6 +212,71 @@ export function buildQuestion(
   };
 }
 
+// ---------- v2.7 はんぶんチャレンジ（§22）: 連続する問題 ----------
+
+/** 新しい列を始める（出発値は 4けた・32の倍数から。直近の出発値は避ける）。前日以前の出発値で始めたときは revisit */
+function newHalvingChain(o: GenerateOptions, rng: Rng): Question {
+  const recentStarts = o.pick.recentIds.slice(-10).map((id) => Number(id.split(':')[1])).filter((n) => n >= START_MIN);
+  const priorStarts = startValues().filter((n) => o.pick.priorDayIds.has(questionId('halving', [n])) && !recentStarts.includes(n));
+  let start: number;
+  let stage: LearningStage = o.stage;
+  if (o.stage === 'construct' && priorStarts.length && rng() < 0.2) {
+    start = priorStarts[Math.floor(rng() * priorStarts.length)];
+    stage = 'revisit';
+  } else start = pickStart(rng, recentStarts);
+  return halvingQuestion(start, { id: uid('c-'), initial: start, step: 0 }, o.mode, stage, o.learning, rng);
+}
+
+export function halvingQuestion(
+  current: number,
+  chain: NonNullable<Question['chain']>,
+  mode: ModeId,
+  stage: LearningStage,
+  learning: Readonly<LearningSettings>,
+  rng: Rng = Math.random,
+): Question {
+  return {
+    id: questionId('halving', [current]),
+    taskType: 'halving',
+    operation: 'halve',
+    operands: [current],
+    expectedValue: current / 2,
+    representation: mode,
+    strategy: 'none',
+    distractors: halvingDistractors(current, learning.choiceCount - 1, rng),
+    difficulty: DIFFICULTY.halving,
+    variantId: `chain/step${chain.step}`,
+    learningStage: stage,
+    chain,
+  };
+}
+
+/** 半分を選べた試行のつぎ（選んだ半分が新しい基準）。整数の半分ができないときは null（その列はおしまい） */
+export function nextInChain(q: Question, learning: Readonly<LearningSettings>, rng: Rng = Math.random): Question | null {
+  if (q.taskType !== 'halving' || !q.chain) return null;
+  const h = halfOf(q.operands[0]);
+  if (h === null || !canHalve(h)) return null;
+  return halvingQuestion(h, { ...q.chain, step: q.chain.step + 1 }, q.representation, 'construct', learning, rng);
+}
+
+/** 試行が終わったあとに出す、つぎの選び方（課題ごと）。null なら従来の「つぎへ」 */
+export interface Continuation {
+  key: 'more' | 'new_chain';
+  question?: Question;
+}
+
+export function continuationsOf(trial: Pick<Trial, 'question' | 'result'>, learning: Readonly<LearningSettings>, rng: Rng = Math.random): Continuation[] | null {
+  const q = trial.question;
+  if (q.taskType !== 'halving') return null;
+  const out: Continuation[] = [];
+  // 本人が半分を選べたときだけ、つぎの半分へ進める（スキップでは進めない。自動で続けない）
+  const solved = trial.result?.outcome === 'completed' && trial.result.assistanceLevel !== 'not_completed';
+  const next = solved ? nextInChain(q, learning, rng) : null;
+  if (next) out.push({ key: 'more', question: next });
+  out.push({ key: 'new_chain' });
+  return out;
+}
+
 /** §9.5 表現横断: 数量関係（id・operands・expectedValue）を保ったまま表現だけ変える */
 export function retarget(q: Question, mode: ModeId, settings: Readonly<AccessibilitySettings>, learning: Readonly<LearningSettings>, rng: Rng = Math.random): Question {
   const stage: LearningStage = 'transfer';
@@ -233,13 +313,24 @@ export function validateQuestion(q: Question): string[] {
     if (q.expectedValue !== null) errs.push('explore の expectedValue は null');
     return errs;
   }
-  const inRange = (v: number) => Number.isInteger(v) && v >= 0 && v <= 20;
-  if (!q.operands.every(inRange)) errs.push('operands が 0〜20 の範囲外');
-  if (q.expectedValue === null || !inRange(q.expectedValue)) errs.push('expectedValue が 0〜20 の範囲外');
+  // v2.7: 数の範囲は課題ごと（§9.0）。はんぶんチャレンジ以外は 0〜20 のまま
+  const r = valueRange(q.taskType);
+  const inRange = (v: number) => Number.isInteger(v) && v >= r.min && v <= r.max;
+  if (!q.operands.every(inRange)) errs.push(`operands が ${r.min}〜${r.max} の範囲外`);
+  if (q.expectedValue === null || !inRange(q.expectedValue)) errs.push(`expectedValue が ${r.min}〜${r.max} の範囲外`);
   if (q.expectedValue !== expectedValueOf(q.taskType, q.operands)) errs.push('expectedValue が operands と一致しない');
   const [a, b] = q.operands;
   if (q.taskType === 'carry_over' && !isCarryPair(a, b)) errs.push('繰り上がりの範囲外（1〜9、和11〜18）');
   if (q.taskType === 'borrow' && !isBorrowPair(a, b)) errs.push('繰り下がりの範囲外（被減数11〜18、減数2〜9、一の位<減数）');
+  if (q.taskType === 'halving') {
+    if (q.operands.length !== 1 || !canHalve(a)) errs.push('はんぶん: 2 以上の偶数を1つ');
+    if (!q.chain) errs.push('はんぶん: 列（chain）がない');
+    else {
+      if (q.chain.initial < START_MIN || q.chain.initial > START_MAX) errs.push('はんぶん: 出発値が 4けたでない');
+      // 今の数は、出発値を step 回半分にした数
+      if (q.chain.initial / 2 ** q.chain.step !== a) errs.push('はんぶん: 今の数が出発値と step に合わない');
+    }
+  }
   if (q.taskType === 'balance' && !(a >= 6 && a <= 18 && b >= 1 && b <= 9 && a - b >= 1 && a - b <= 9)) errs.push('釣り合いの範囲外（左6〜18、右1〜9、足す重り1〜9）');
   const choices = q.distractors.length + 1;
   if (choices < 2 || choices > 4) errs.push('選択肢は2〜4個');
@@ -248,6 +339,12 @@ export function validateQuestion(q: Question): string[] {
   if (new Set(q.distractors).size !== q.distractors.length) errs.push('ダミーが重複');
   if (q.taskType === 'subitizing_678' && !hasSameParityDistractor(dv, q.distractors)) errs.push('識別課題に同偶奇のダミーがない');
   return errs;
+}
+
+/** 課題ごとの数の範囲（出題・答え・選択肢の元になる値） */
+export function valueRange(task: TaskCategory): { min: number; max: number } {
+  if (task === 'halving') return { min: 1, max: HALVING_MAX };
+  return { min: 0, max: 20 };
 }
 
 export function choicesOf(q: Question, rng: Rng = Math.random): number[] {

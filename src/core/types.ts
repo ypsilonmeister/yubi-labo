@@ -12,7 +12,9 @@ export type TaskCategory =
   | 'arrays'
   | 'balance'
   | 'doubling'
-  | 'period';
+  | 'period'
+  // 実装拡張（v2.7・§22 はんぶんチャレンジ）
+  | 'halving';
 
 export type ModeId =
   | 'mode_a_parity'
@@ -23,13 +25,15 @@ export type ModeId =
   | 'mode_e_tiles'
   | 'mode_f_seesaw'
   | 'mode_g_doubling'
-  | 'mode_h_trains';
+  | 'mode_h_trains'
+  // 実装拡張（v2.7・§22）
+  | 'mode_i_halving';
 
 // 実装拡張: "construct"（本課題）。§9.0 の表で「本課題・transfer」とされる決定点を、
 // 初回の表現で行う段階として明示する。transfer / revisit は同じ決定点を別表現・別日に行う。
 export type LearningStage = 'explore' | 'observe' | 'predict' | 'construct' | 'transfer' | 'revisit';
 
-export type Operation = 'identify' | 'match' | 'compose' | 'complement' | 'add' | 'subtract' | 'arrange' | 'balance' | 'scale' | 'cycle';
+export type Operation = 'identify' | 'match' | 'compose' | 'complement' | 'add' | 'subtract' | 'arrange' | 'balance' | 'scale' | 'cycle' | 'halve';
 
 export type Strategy = 'none' | 'make_ten' | 'subtract_from_ten' | 'subtract_subtract' | 'count_up';
 
@@ -45,6 +49,18 @@ export interface Question {
   difficulty: number;
   variantId: string;
   learningStage: LearningStage;
+  /**
+   * 実装拡張（v2.7・§22）: 連続する問題（はんぶんチャレンジ）のつながり。
+   * id は1つの出発値から始まる列ごと、initial は出発値、step は出発値から何回半分にしたか（0 始まり）。
+   * 1回「半分を選ぶ」が1試行。列そのものは問題に詰めこまない。
+   */
+  chain?: QuestionChain;
+}
+
+export interface QuestionChain {
+  id: string;
+  initial: number;
+  step: number;
 }
 
 export interface AccessibilitySettings {

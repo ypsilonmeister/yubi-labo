@@ -8,6 +8,7 @@ import { TilesMode } from './tiles/TilesMode';
 import { SeesawMode } from './seesaw/SeesawMode';
 import { DoublingMode } from './doubling/DoublingMode';
 import { TrainsMode } from './trains/TrainsMode';
+import { HalvingMode } from './halving/HalvingMode';
 
 let done = false;
 export function registerModes() {
@@ -22,4 +23,6 @@ export function registerModes() {
   GameRegistry.register(SeesawMode);
   GameRegistry.register(DoublingMode);
   GameRegistry.register(TrainsMode);
+  // v2.7 はんぶんチャレンジ（§22）
+  GameRegistry.register(HalvingMode);
 }

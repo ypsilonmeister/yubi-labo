@@ -42,6 +42,7 @@ export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: nu
           ))}
         </>
       )}
+      {mode === 'mode_i_halving' && <HalvingIcon />}
       {(mode === 'mode_e_tiles' || mode === 'mode_f_seesaw' || mode === 'mode_g_doubling' || mode === 'mode_h_trains') && <LabIcon mode={mode} c={c} />}
       {mode === 'mode_d_exchange' && (
         <>
@@ -60,6 +61,32 @@ export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: nu
         </>
       )}
     </svg>
+  );
+}
+
+/** v2.7 はんぶんチャレンジ: 千のかたまり・百の板・十の棒を、左右に同じだけ分けた形（色は使わない） */
+function HalvingIcon() {
+  const f = TILE.fill;
+  const cube = (x: number, y: number) => (
+    <g key={`c${x}`} stroke={OUTLINE} strokeWidth={1.5}>
+      <path d={`M${x} ${y + 6} L${x + 6} ${y} L${x + 24} ${y} L${x + 18} ${y + 6} Z`} fill="#c4dcf0" />
+      <path d={`M${x + 18} ${y + 6} L${x + 24} ${y} L${x + 24} ${y + 18} L${x + 18} ${y + 24} Z`} fill="#7fa9cc" />
+      <rect x={x} y={y + 6} width={18} height={18} fill={f} />
+    </g>
+  );
+  const side = (x0: number) => (
+    <g>
+      {cube(x0, 22)}
+      <rect x={x0} y={54} width={18} height={18} rx={1} fill={f} stroke={OUTLINE} strokeWidth={1.5} />
+      <rect x={x0 + 24} y={52} width={6} height={22} rx={1} fill={f} stroke={OUTLINE} strokeWidth={1.5} />
+    </g>
+  );
+  return (
+    <g>
+      {side(8)}
+      <line x1={50} x2={50} y1={16} y2={84} stroke={OUTLINE} strokeWidth={2} strokeDasharray="5 5" />
+      {side(60)}
+    </g>
   );
 }
 
@@ -162,6 +189,7 @@ export function TaskIcon({ task, s, size = 72 }: { task: TaskCategory; s: S; siz
       {task === 'arrays' && <LabIcon mode="mode_e_tiles" c={c} />}
       {task === 'doubling' && <LabIcon mode="mode_g_doubling" c={c} />}
       {task === 'period' && <LabIcon mode="mode_h_trains" c={c} />}
+      {task === 'halving' && <HalvingIcon />}
       {task === 'borrow' && (
         <>
           <g transform="translate(4 18)">
