@@ -14,7 +14,13 @@ export type TaskCategory =
   | 'doubling'
   | 'period'
   // 実装拡張（v2.7・§22 はんぶんチャレンジ）
-  | 'halving';
+  | 'halving'
+  // 実装拡張（v2.8・§9.8 ジオボード）
+  | 'shapes'
+  // 実装拡張（v2.9・§9.9 かたちづくり）
+  | 'shape_right'
+  | 'shape_triangle'
+  | 'shape_rectangle';
 
 export type ModeId =
   | 'mode_a_parity'
@@ -27,13 +33,17 @@ export type ModeId =
   | 'mode_g_doubling'
   | 'mode_h_trains'
   // 実装拡張（v2.7・§22）
-  | 'mode_i_halving';
+  | 'mode_i_halving'
+  // 実装拡張（v2.8・§9.8）
+  | 'mode_j_geoboard'
+  // 実装拡張（v2.9・§9.9）
+  | 'mode_k_shapemake';
 
 // 実装拡張: "construct"（本課題）。§9.0 の表で「本課題・transfer」とされる決定点を、
 // 初回の表現で行う段階として明示する。transfer / revisit は同じ決定点を別表現・別日に行う。
 export type LearningStage = 'explore' | 'observe' | 'predict' | 'construct' | 'transfer' | 'revisit';
 
-export type Operation = 'identify' | 'match' | 'compose' | 'complement' | 'add' | 'subtract' | 'arrange' | 'balance' | 'scale' | 'cycle' | 'halve';
+export type Operation = 'identify' | 'match' | 'compose' | 'complement' | 'add' | 'subtract' | 'arrange' | 'balance' | 'scale' | 'cycle' | 'halve' | 'draw';
 
 export type Strategy = 'none' | 'make_ten' | 'subtract_from_ten' | 'subtract_subtract' | 'count_up';
 
@@ -207,9 +217,10 @@ export interface Trial {
  * 実装拡張（v2.3）: 図鑑に残る発見の種類。
  * sum: parts を合わせた（v2.1 から）／product: parts=[行, 列] の長方形／prime: 1列にしか並ばない石（parts=[n]）／
  * balance: 釣り合い（parts は 左の重り…, 0, 右の重り…）／power: parts=[倍率, 日数]／fraction: value=1 を parts=[いくつに] わけた／
- * period: parts=[a, b] の列車の端がそろった
+ * period: parts=[a, b] の列車の端がそろった／
+ * shape（v2.8）: value=かどの数、parts=[形の記号]（1 さんかく・2 ちょっかく さんかく・3 しかく・4 ちょうほうけい・5 せいほうけい）
  */
-export type CraftKind = 'sum' | 'product' | 'prime' | 'balance' | 'power' | 'fraction' | 'period';
+export type CraftKind = 'sum' | 'product' | 'prime' | 'balance' | 'power' | 'fraction' | 'period' | 'shape';
 
 export interface CraftEntry {
   value: number;

@@ -2,6 +2,7 @@ import type { AccessibilitySettings, LearningSettings, LearningStage, ModeId, Op
 import { allBorrowPairs, allCarryPairs, isBorrowPair, isCarryPair } from '../math/tenframe';
 import { hasSameParityDistractor, makeDistractors, shuffle, type Rng } from '../math/choices';
 import { canHalve, halfOf, halvingDistractors, HALVING_MAX, pickStart, START_MAX, START_MIN, startValues } from '../math/halving';
+import { givenEdges, goalOperands, GOAL_OF_CODE, parseGoalOperands, type ShapeGoal } from '../math/shapes';
 import { uid } from '../time';
 
 export const OPERATION_OF: Record<TaskCategory, Operation> = {
@@ -16,7 +17,15 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   doubling: 'scale',
   period: 'cycle',
   halving: 'halve',
+  shapes: 'draw',
+  shape_right: 'draw',
+  shape_triangle: 'draw',
+  shape_rectangle: 'draw',
 };
+
+/** v2.9 かたちづくり: 課題ごとの目標（§9.9）。決定点は「目標の形をつくる」で、選択肢は使わない */
+export const GOAL_OF_TASK: Partial<Record<TaskCategory, ShapeGoal>> = { shape_right: 'right', shape_triangle: 'triangle', shape_rectangle: 'rectangle' };
+export const isShapeGoalTask = (t: TaskCategory) => t in GOAL_OF_TASK;
 
 export function strategyFor(task: TaskCategory, mode: ModeId, settings: Readonly<AccessibilitySettings>): Strategy {
   if (task === 'carry_over') return 'make_ten';
@@ -44,11 +53,17 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'arrays':
     case 'doubling':
     case 'period':
-      // じっけんラボは自由探索のみ（expectedValue は null で出す）
+    case 'shapes':
+      // じっけんラボ・ジオボードは自由探索のみ（expectedValue は null で出す）
       return operands[0] ?? 0;
     case 'halving':
       // v2.7: 整数の半分（奇数は出題しないので割り切れる）
       return operands[0] / 2;
+    case 'shape_right':
+    case 'shape_triangle':
+    case 'shape_rectangle':
+      // v2.9: 目標の記号（operands の先頭）
+      return operands[0];
   }
 }
 
@@ -77,9 +92,14 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
     case 'arrays':
     case 'doubling':
     case 'period':
+    case 'shapes':
       return a ?? 0;
     case 'halving':
       return a / 2;
+    case 'shape_right':
+    case 'shape_triangle':
+    case 'shape_rectangle':
+      return a;
   }
 }
 
@@ -92,6 +112,8 @@ function distractorRange(task: TaskCategory, stage: LearningStage): { min: numbe
 export function distractorsFor(q: Pick<Question, 'taskType' | 'operands' | 'learningStage' | 'representation'>, count: number, rng: Rng): number[] {
   // v2.7: 半分は、理由のある間違い（ひらかずに分けた・半分を2回・2倍）を候補にする（§22）
   if (q.taskType === 'halving') return halvingDistractors(q.operands[0], count, rng);
+  // v2.9: かたちづくりは、選択肢ではなく「つくる」決定点（ダミーなし）
+  if (isShapeGoalTask(q.taskType)) return [];
   const v = decisionValue(q);
   const range = distractorRange(q.taskType, q.learningStage);
   return makeDistractors(v, count, { ...range, sameParity: q.taskType === 'subitizing_678' }, rng);
@@ -126,10 +148,16 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
     case 'arrays':
     case 'doubling':
     case 'period':
+    case 'shapes':
       return [];
     case 'halving':
       // 新しい列の出発値（4けた・32の倍数）。続きの問題は nextInChain で作る
       return startValues().map((n) => [n]);
+    case 'shape_right':
+    case 'shape_triangle':
+    case 'shape_rectangle':
+      // v2.9: 最初の1辺（90通り）
+      return givenEdges().map((e) => goalOperands(GOAL_OF_TASK[task]!, e));
   }
 }
 
@@ -152,6 +180,10 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   doubling: 0,
   period: 0,
   halving: 5,
+  shapes: 0,
+  shape_right: 2,
+  shape_triangle: 3,
+  shape_rectangle: 3,
 };
 
 export interface GenerateOptions {
@@ -331,6 +363,12 @@ export function validateQuestion(q: Question): string[] {
       if (q.chain.initial / 2 ** q.chain.step !== a) errs.push('はんぶん: 今の数が出発値と step に合わない');
     }
   }
+  if (isShapeGoalTask(q.taskType)) {
+    const g = parseGoalOperands(q.operands);
+    if (!g) errs.push('かたちづくり: 目標と最初の1辺（たて・よこ、長さ1〜3、盤の中）が正しくない');
+    else if (GOAL_OF_CODE[q.operands[0]] !== GOAL_OF_TASK[q.taskType]) errs.push('かたちづくり: 目標が課題と合わない');
+    return errs;
+  }
   if (q.taskType === 'balance' && !(a >= 6 && a <= 18 && b >= 1 && b <= 9 && a - b >= 1 && a - b <= 9)) errs.push('釣り合いの範囲外（左6〜18、右1〜9、足す重り1〜9）');
   const choices = q.distractors.length + 1;
   if (choices < 2 || choices > 4) errs.push('選択肢は2〜4個');
@@ -344,6 +382,8 @@ export function validateQuestion(q: Question): string[] {
 /** 課題ごとの数の範囲（出題・答え・選択肢の元になる値） */
 export function valueRange(task: TaskCategory): { min: number; max: number } {
   if (task === 'halving') return { min: 1, max: HALVING_MAX };
+  // v2.9: 目標の記号と盤の座標（0〜4）
+  if (isShapeGoalTask(task)) return { min: 0, max: 4 };
   return { min: 0, max: 20 };
 }
 

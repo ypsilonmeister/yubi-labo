@@ -5,8 +5,8 @@ import { OUTLINE, SLOT_STROKE, TILE } from '../../core/colors';
 
 /** 位ごとの1こ分の描画の大きさ（左上からの幅・高さ）と、1行に並べる数 */
 const CELL = [
-  { w: 16, h: 16, perRow: 5 }, // 一: 小さな四角
-  { w: 12, h: 40, perRow: 10 }, // 十: 棒
+  { w: 26, h: 26, perRow: 5 }, // 一: 小さな四角（スマホ幅でも見えるよう、百・千よりは小さいまま大きめにとる）
+  { w: 16, h: 52, perRow: 10 }, // 十: 棒
   { w: 30, h: 30, perRow: 5 }, // 百: 板
   { w: 46, h: 46, perRow: 3 }, // 千: かたまり
   { w: 58, h: 58, perRow: 2 }, // 万: 大きな箱（2倍の誤答を2つ合わせたときだけ）
@@ -28,13 +28,13 @@ function Unit({ place, x, y, opened }: { place: number; x: number; y: number; op
   const f = TILE.fill;
   const st = opened ? TILE.glow : TILE.stroke;
   const sw = opened ? 2.5 : 1.5;
-  if (place === 0) return <rect x={x + 1} y={y + 1} width={14} height={14} rx={3} fill={f} stroke={st} strokeWidth={sw} />;
+  if (place === 0) return <rect x={x + 1} y={y + 1} width={CELL[0].w - 2} height={CELL[0].h - 2} rx={4} fill={f} stroke={st} strokeWidth={sw} />;
   if (place === 1)
     return (
       <g>
-        <rect x={x + 1} y={y + 1} width={10} height={38} rx={2} fill={f} stroke={st} strokeWidth={sw} />
+        <rect x={x + 1} y={y + 1} width={CELL[1].w - 2} height={CELL[1].h - 2} rx={2} fill={f} stroke={st} strokeWidth={sw} />
         {Array.from({ length: 9 }, (_, i) => (
-          <line key={i} x1={x + 1} x2={x + 11} y1={y + 1 + (i + 1) * 3.8} y2={y + 1 + (i + 1) * 3.8} stroke={TILE.stroke} strokeWidth={0.5} />
+          <line key={i} x1={x + 1} x2={x + CELL[1].w - 1} y1={y + 1 + (i + 1) * ((CELL[1].h - 2) / 10)} y2={y + 1 + (i + 1) * ((CELL[1].h - 2) / 10)} stroke={TILE.stroke} strokeWidth={0.5} />
         ))}
       </g>
     );
