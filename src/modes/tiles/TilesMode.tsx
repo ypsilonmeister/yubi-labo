@@ -46,7 +46,7 @@ interface Snapshot {
   history: number[];
 }
 
-function TileLab({ core }: { core: TrialCore }) {
+export function TileLab({ core }: { core: TrialCore }) {
   const s = core.settings;
   const [n, setN] = useState(6);
   const [rows, setRows] = useState(1);

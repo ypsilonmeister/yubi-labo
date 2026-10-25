@@ -17,6 +17,9 @@ export const TASK_LABEL: Record<TaskCategory, string> = {
   shape_right: 'まっすぐな かど',
   shape_triangle: 'さんかく',
   shape_rectangle: 'ちょうほうけい',
+  array_multiply: 'いくつ ある',
+  array_divide: 'わけて ならべる',
+  array_split: '10と のこり',
 };
 
 export function taskLabel(task: TaskCategory, mode: ModeId): string {
@@ -51,6 +54,9 @@ export const TASK_LABEL_PARENT: Record<TaskCategory, string> = {
   shape_right: '直角だけの形をつくる',
   shape_triangle: '三角形をつくる',
   shape_rectangle: '長方形をつくる',
+  array_multiply: '掛け算（タイルの配列）',
+  array_divide: '割り算（割り切れる）',
+  array_split: '2けた×1けた（10と残りに分ける）',
 };
 
 export const MODE_LABEL_PARENT: Record<ModeId, string> = {
@@ -65,6 +71,7 @@ export const MODE_LABEL_PARENT: Record<ModeId, string> = {
   mode_i_halving: 'I はんぶんチャレンジ',
   mode_j_geoboard: 'J ジオボード',
   mode_k_shapemake: 'K かたちづくり',
+  mode_l_arrays: 'L タイルの かけわり',
 };
 
 export const STAGE_LABEL_PARENT: Record<LearningStage, string> = {

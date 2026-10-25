@@ -49,6 +49,17 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
     case 'shape_rectangle':
       // v2.9: かたちづくりに式はない
       return [];
+    case 'array_multiply':
+      // v2.10: operands は [行, 列]。式は「1行の数 × 行の数」（1つ分 × いくつ分）
+      return [`${b} × ${a} = ${revealed ? a * b : '？'}`];
+    case 'array_divide':
+      return [`${a} ÷ ${b} = ${revealed ? a / b : '？'}`];
+    case 'array_split': {
+      // v2.10: 10と のこりに分けた式。答えは試行が終わってから
+      if (!revealed) return [`${b} × ${a} = ？`];
+      const rest = b - 10;
+      return [`10 × ${a} = ${10 * a}`, `${rest} × ${a} = ${rest * a}`, `${10 * a} + ${rest * a} = ${a * b}`, `${b} × ${a} = ${a * b}`];
+    }
     case 'halving': {
       // v2.7: 出題中は「〜の はんぶん は ？」だけ。答えは試行が終わってから
       if (!revealed) return [`${a} の はんぶん は ？`];

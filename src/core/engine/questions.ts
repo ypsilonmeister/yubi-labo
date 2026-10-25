@@ -3,6 +3,7 @@ import { allBorrowPairs, allCarryPairs, isBorrowPair, isCarryPair } from '../mat
 import { hasSameParityDistractor, makeDistractors, shuffle, type Rng } from '../math/choices';
 import { canHalve, halfOf, halvingDistractors, HALVING_MAX, pickStart, START_MAX, START_MIN, startValues } from '../math/halving';
 import { givenEdges, goalOperands, GOAL_OF_CODE, parseGoalOperands, type ShapeGoal } from '../math/shapes';
+import { arrayAnswer, arrayDistractors, arrayPairs, isValidArrayOperands, SPLIT_MAX, FACTOR_MAX, type ArrayTask } from '../math/arrays';
 import { uid } from '../time';
 
 export const OPERATION_OF: Record<TaskCategory, Operation> = {
@@ -21,7 +22,13 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   shape_right: 'draw',
   shape_triangle: 'draw',
   shape_rectangle: 'draw',
+  array_multiply: 'multiply',
+  array_divide: 'divide',
+  array_split: 'multiply',
 };
+
+/** v2.10 タイルの かけわり（§9.10）の課題か */
+export const isArrayTask = (t: TaskCategory): t is ArrayTask => t === 'array_multiply' || t === 'array_divide' || t === 'array_split';
 
 /** v2.9 かたちづくり: 課題ごとの目標（§9.9）。決定点は「目標の形をつくる」で、選択肢は使わない */
 export const GOAL_OF_TASK: Partial<Record<TaskCategory, ShapeGoal>> = { shape_right: 'right', shape_triangle: 'triangle', shape_rectangle: 'rectangle' };
@@ -64,6 +71,11 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'shape_rectangle':
       // v2.9: 目標の記号（operands の先頭）
       return operands[0];
+    case 'array_multiply':
+    case 'array_divide':
+    case 'array_split':
+      // v2.10: かけざん・10と のこりは 行 × 列、わりざんは 列
+      return arrayAnswer(task, operands);
   }
 }
 
@@ -100,6 +112,10 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
     case 'shape_triangle':
     case 'shape_rectangle':
       return a;
+    case 'array_multiply':
+    case 'array_divide':
+    case 'array_split':
+      return arrayAnswer(q.taskType, q.operands);
   }
 }
 
@@ -114,6 +130,8 @@ export function distractorsFor(q: Pick<Question, 'taskType' | 'operands' | 'lear
   if (q.taskType === 'halving') return halvingDistractors(q.operands[0], count, rng);
   // v2.9: かたちづくりは、選択肢ではなく「つくる」決定点（ダミーなし）
   if (isShapeGoalTask(q.taskType)) return [];
+  // v2.10: かけわりは、理由のある間違い（たした・1列ずれた・のこりを かけわすれた など）を候補にする（§9.10）
+  if (isArrayTask(q.taskType)) return arrayDistractors(q.taskType, q.operands, count, rng);
   const v = decisionValue(q);
   const range = distractorRange(q.taskType, q.learningStage);
   return makeDistractors(v, count, { ...range, sameParity: q.taskType === 'subitizing_678' }, rng);
@@ -158,6 +176,10 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
     case 'shape_rectangle':
       // v2.9: 最初の1辺（90通り）
       return givenEdges().map((e) => goalOperands(GOAL_OF_TASK[task]!, e));
+    case 'array_multiply':
+    case 'array_divide':
+    case 'array_split':
+      return arrayPairs(task);
   }
 }
 
@@ -184,6 +206,9 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   shape_right: 2,
   shape_triangle: 3,
   shape_rectangle: 3,
+  array_multiply: 3,
+  array_divide: 4,
+  array_split: 5,
 };
 
 export interface GenerateOptions {
@@ -369,6 +394,7 @@ export function validateQuestion(q: Question): string[] {
     else if (GOAL_OF_CODE[q.operands[0]] !== GOAL_OF_TASK[q.taskType]) errs.push('かたちづくり: 目標が課題と合わない');
     return errs;
   }
+  if (isArrayTask(q.taskType) && !isValidArrayOperands(q.taskType, q.operands)) errs.push('かけわり: 行・列が範囲外か、割り切れない');
   if (q.taskType === 'balance' && !(a >= 6 && a <= 18 && b >= 1 && b <= 9 && a - b >= 1 && a - b <= 9)) errs.push('釣り合いの範囲外（左6〜18、右1〜9、足す重り1〜9）');
   const choices = q.distractors.length + 1;
   if (choices < 2 || choices > 4) errs.push('選択肢は2〜4個');
@@ -384,6 +410,8 @@ export function valueRange(task: TaskCategory): { min: number; max: number } {
   if (task === 'halving') return { min: 1, max: HALVING_MAX };
   // v2.9: 目標の記号と盤の座標（0〜4）
   if (isShapeGoalTask(task)) return { min: 0, max: 4 };
+  // v2.10: 行・列は 2〜19、答え（ぜんぶの数）は 19 × 9 まで
+  if (isArrayTask(task)) return { min: 2, max: SPLIT_MAX * FACTOR_MAX };
   return { min: 0, max: 20 };
 }
 

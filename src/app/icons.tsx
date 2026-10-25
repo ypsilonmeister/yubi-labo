@@ -1,7 +1,7 @@
 // モード・課題のアイコン（色は colorScheme に従う）
 
 import type { AccessibilitySettings, ModeId, TaskCategory } from '../core/types';
-import { numberColor, OUTLINE, TILE } from '../core/colors';
+import { numberColor, OUTLINE, PLACE_BG, PLACE_STROKE, TILE } from '../core/colors';
 import { PlateCells, Silhouette } from '../modes/shared/Plate';
 import { plateCells } from '../core/math/parity';
 
@@ -45,6 +45,7 @@ export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: nu
       {mode === 'mode_i_halving' && <HalvingIcon />}
       {mode === 'mode_j_geoboard' && <GeoboardIcon />}
       {mode === 'mode_k_shapemake' && <GeoboardIcon triangle />}
+      {mode === 'mode_l_arrays' && <ArraysIcon kind="split" />}
       {(mode === 'mode_e_tiles' || mode === 'mode_f_seesaw' || mode === 'mode_g_doubling' || mode === 'mode_h_trains') && <LabIcon mode={mode} c={c} />}
       {mode === 'mode_d_exchange' && (
         <>
@@ -112,6 +113,29 @@ function GeoboardIcon({ triangle }: { triangle?: boolean }) {
           <path d="M20 40 h8 v8 M60 40 v8 h-8" fill="none" stroke={OUTLINE} strokeWidth={2} />
         </>
       )}
+    </g>
+  );
+}
+
+/** v2.10 タイルの かけわり: 配列（かけざん）／左の山から右の れつへ（わりざん）／10の列と のこり（10と のこり） */
+function ArraysIcon({ kind }: { kind: 'multiply' | 'divide' | 'split' }) {
+  const tile = (x: number, y: number, k: string, size = 9) => <rect key={k} x={x} y={y} width={size} height={size} rx={1.5} fill={TILE.fill} stroke={TILE.stroke} strokeWidth={1} />;
+  if (kind === 'multiply')
+    return <g>{Array.from({ length: 12 }, (_, i) => tile(24 + (i % 4) * 13, 30 + Math.floor(i / 4) * 13, `m${i}`, 11))}</g>;
+  if (kind === 'divide')
+    return (
+      <g>
+        {Array.from({ length: 6 }, (_, i) => tile(8 + (i % 3) * 10, 40 + Math.floor(i / 3) * 10, `p${i}`))}
+        <text x={46} y={54} fontSize={14} fill="#3a3226">→</text>
+        {Array.from({ length: 6 }, (_, i) => tile(62 + Math.floor(i / 2) * 11, 36 + (i % 2) * 14, `g${i}`))}
+      </g>
+    );
+  return (
+    <g>
+      <rect x={6} y={30} width={62} height={34} rx={4} fill={PLACE_BG.tens} stroke={PLACE_STROKE.tens} strokeWidth={1.5} />
+      <rect x={70} y={30} width={24} height={34} rx={4} fill={PLACE_BG.ones} stroke={PLACE_STROKE.ones} strokeWidth={1.5} />
+      {Array.from({ length: 30 }, (_, i) => tile(8 + Math.floor(i / 3) * 6, 33 + (i % 3) * 10, `t${i}`, 5))}
+      {Array.from({ length: 9 }, (_, i) => tile(73 + Math.floor(i / 3) * 6.5, 33 + (i % 3) * 10, `o${i}`, 5))}
     </g>
   );
 }
@@ -218,6 +242,9 @@ export function TaskIcon({ task, s, size = 72 }: { task: TaskCategory; s: S; siz
       {task === 'halving' && <HalvingIcon />}
       {(task === 'shapes' || task === 'shape_right' || task === 'shape_rectangle') && <GeoboardIcon />}
       {task === 'shape_triangle' && <GeoboardIcon triangle />}
+      {task === 'array_multiply' && <ArraysIcon kind="multiply" />}
+      {task === 'array_divide' && <ArraysIcon kind="divide" />}
+      {task === 'array_split' && <ArraysIcon kind="split" />}
       {task === 'borrow' && (
         <>
           <g transform="translate(4 18)">
