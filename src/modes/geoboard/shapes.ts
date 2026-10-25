@@ -103,24 +103,34 @@ export function corners(poly: Pt[]): Pt[] {
   return poly.filter((v, i) => cross(sub(v, poly[(i + n - 1) % n]), sub(poly[(i + 1) % n], v)) !== 0);
 }
 
+/**
+ * 各かどが（輪の内側で）直角か。corners(poly) と同じ順。
+ * 辺の内積が 0 でも、へこんだかど（内角 270°）は直角に数えない。向きは符号つき面積で決める。
+ */
+export function rightCorners(poly: Pt[]): boolean[] {
+  const c = corners(poly);
+  const n = c.length;
+  let area2 = 0;
+  for (let i = 0; i < n; i++) area2 += cross(c[i], c[(i + 1) % n]);
+  return c.map((v, i) => {
+    const a = c[(i + n - 1) % n];
+    const b = c[(i + 1) % n];
+    const convex = Math.sign(cross(sub(v, a), sub(b, v))) === Math.sign(area2);
+    return convex && isRightAngle(a, v, b);
+  });
+}
+
 /** 輪の形の種類。頂点は3つ以上で、1周の輪になっていること */
 export function classify(poly: Pt[]): ShapeClass {
   const c = corners(poly);
   const n = c.length;
-  const right = c.map((v, i) => isRightAngle(c[(i + n - 1) % n], v, c[(i + 1) % n]));
+  const right = rightCorners(c);
   if (n === 3) return right.some(Boolean) ? 'right_triangle' : 'triangle';
   if (n === 4) {
     if (right.every(Boolean)) return len2(c[0], c[1]) === len2(c[1], c[2]) ? 'square' : 'rectangle';
     return 'quadrilateral';
   }
   return 'polygon';
-}
-
-/** 各かどが直角か（corners(poly) と同じ順） */
-export function rightCorners(poly: Pt[]): boolean[] {
-  const c = corners(poly);
-  const n = c.length;
-  return c.map((v, i) => isRightAngle(c[(i + n - 1) % n], v, c[(i + 1) % n]));
 }
 
 /** 図鑑に残す発見（多角形は残さない） */

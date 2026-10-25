@@ -35,6 +35,13 @@ describe('v2.8 ジオボード: 直角と形', () => {
     expect(discoveryOf([P(0, 0), P(2, 0), P(2, 1), P(1, 1), P(1, 2), P(0, 2)])).toBeNull();
   });
 
+  it('へこんだかど（内角 270°）は直角に数えない。向きが逆まわりでも同じ', () => {
+    const L = [P(0, 0), P(2, 0), P(2, 1), P(1, 1), P(1, 2), P(0, 2)];
+    expect(rightCorners(L)).toEqual([true, true, true, false, true, true]);
+    expect(rightCorners([...L].reverse()).filter(Boolean)).toHaveLength(5);
+    expect(classify(L)).toBe('polygon');
+  });
+
   it('長方形は 5×5 のどの置き方でも、4つの直角がある', () => {
     let n = 0;
     for (let x0 = 0; x0 < BOARD; x0++)
