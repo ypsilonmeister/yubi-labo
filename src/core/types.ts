@@ -20,7 +20,11 @@ export type TaskCategory =
   // 実装拡張（v2.9・§9.9 かたちづくり）
   | 'shape_right'
   | 'shape_triangle'
-  | 'shape_rectangle';
+  | 'shape_rectangle'
+  // 実装拡張（v2.10・§9.10 タイルの かけわり）
+  | 'array_multiply'
+  | 'array_divide'
+  | 'array_split';
 
 export type ModeId =
   | 'mode_a_parity'
@@ -37,13 +41,15 @@ export type ModeId =
   // 実装拡張（v2.8・§9.8）
   | 'mode_j_geoboard'
   // 実装拡張（v2.9・§9.9）
-  | 'mode_k_shapemake';
+  | 'mode_k_shapemake'
+  // 実装拡張（v2.10・§9.10）
+  | 'mode_l_arrays';
 
 // 実装拡張: "construct"（本課題）。§9.0 の表で「本課題・transfer」とされる決定点を、
 // 初回の表現で行う段階として明示する。transfer / revisit は同じ決定点を別表現・別日に行う。
 export type LearningStage = 'explore' | 'observe' | 'predict' | 'construct' | 'transfer' | 'revisit';
 
-export type Operation = 'identify' | 'match' | 'compose' | 'complement' | 'add' | 'subtract' | 'arrange' | 'balance' | 'scale' | 'cycle' | 'halve' | 'draw';
+export type Operation = 'identify' | 'match' | 'compose' | 'complement' | 'add' | 'subtract' | 'arrange' | 'balance' | 'scale' | 'cycle' | 'halve' | 'draw' | 'multiply' | 'divide';
 
 export type Strategy = 'none' | 'make_ten' | 'subtract_from_ten' | 'subtract_subtract' | 'count_up';
 

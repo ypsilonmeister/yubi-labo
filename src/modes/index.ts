@@ -11,6 +11,7 @@ import { TrainsMode } from './trains/TrainsMode';
 import { HalvingMode } from './halving/HalvingMode';
 import { GeoboardMode } from './geoboard/GeoboardMode';
 import { ShapeMakeMode } from './geoboard/ShapeMakeMode';
+import { ArraysMode } from './arrays/ArraysMode';
 
 let done = false;
 export function registerModes() {
@@ -31,4 +32,6 @@ export function registerModes() {
   GameRegistry.register(GeoboardMode);
   // v2.9 かたちづくり（§9.9）
   GameRegistry.register(ShapeMakeMode);
+  // v2.10 タイルの かけわり（§9.10）
+  GameRegistry.register(ArraysMode);
 }
