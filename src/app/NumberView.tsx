@@ -54,6 +54,29 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
       return [`${b} × ${a} = ${revealed ? a * b : '？'}`];
     case 'array_divide':
       return [`${a} ÷ ${b} = ${revealed ? a / b : '？'}`];
+    case 'carry_2d1':
+    case 'carry_2d2': {
+      // v2.11: 一の位で 10をつくり、十の位は 10のカードで数える。答えは試行が終わってから
+      if (!revealed) return [`${a} + ${b} = ？`];
+      const ao = a % 10;
+      const bo = b % 10;
+      const tensSum = (a - ao) + (b - bo);
+      return [`${ao} + ${10 - ao} = 10`, `10 と ${ao + bo - 10} で ${ao + bo}`, `${tensSum} + ${ao + bo} = ${a + b}`, `${a} + ${b} = ${a + b}`];
+    }
+    case 'borrow_2d1':
+    case 'borrow_2d2': {
+      // v2.11: 10を ひらいて、一の位は減加法（設定で減減法）。十の位は のこった 10のカード
+      if (!revealed) return [`${a} − ${b} = ？`];
+      const u = a % 10;
+      const so = b % 10;
+      const tensLeft = a - u - 10 - (b - so);
+      const onesLeft = 10 - so + u;
+      const onesLines =
+        q.strategy === 'subtract_subtract'
+          ? [`${so} を ${u} と ${so - u} に わける`, `10 から ${so - u} を とって ${onesLeft}`]
+          : [`10 を ${so} と ${10 - so} に わける`, `${10 - so} と ${u} で ${onesLeft}`];
+      return [...onesLines, `${tensLeft} + ${onesLeft} = ${a - b}`, `${a} − ${b} = ${a - b}`];
+    }
     case 'array_split': {
       // v2.10: 10と のこりに分けた式。答えは試行が終わってから
       if (!revealed) return [`${b} × ${a} = ？`];

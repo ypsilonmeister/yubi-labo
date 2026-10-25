@@ -38,6 +38,8 @@ export interface World {
   blobs: Blob[];
   bus: { seats: number; dx: number } | null;
   mini: boolean; // 10を開いた小さいフレームを出すか
+  /** v2.11: 開いた10の小さいフレームを 10の部屋の下側に出す（10のカードが何枚もあるとき） */
+  miniLow?: boolean;
 }
 
 export const slotPos = (i: number, fill: FillOrder) => {
@@ -64,7 +66,7 @@ const blob = (id: string, p: { x: number; y: number }, r: number, tone: number, 
 const kingBlob = (opacity: number) => blob('K', KING, KING.r, 10, opacity, true);
 
 function cloneWorld(w: World, patch: Partial<World> = {}): World {
-  return { blobs: w.blobs.map((b) => ({ ...b })), bus: w.bus ? { ...w.bus } : null, mini: w.mini, ...patch };
+  return { blobs: w.blobs.map((b) => ({ ...b })), bus: w.bus ? { ...w.bus } : null, mini: w.mini, ...(w.miniLow ? { miniLow: true } : {}), ...patch };
 }
 
 function moveBlobs(w: World, f: (b: Blob) => Partial<Blob> | null): World {
@@ -117,14 +119,15 @@ export function countWorld(w: World): Counts {
 
 // ---------- 台本 ----------
 
-export type Target = 'frame' | 'bus' | 'box' | 'king';
+/** total（v2.11）: ？の箱で「ぜんぶで いくつ」を選ぶ（2けた。選んでから仕組みを見る） */
+export type Target = 'frame' | 'bus' | 'box' | 'king' | 'total';
 
 export type Step =
   | { kind: 'scene'; world: World; ms: number; label: string }
   /** 本人がキングをタップして「ひらく」のを待つ（判定しない操作） */
   | { kind: 'tapKing' }
   /** 決定点。answer と違う値のときの場面は mismatch(k) で作る（null なら場面は変えず比べるだけ） */
-  | { kind: 'decide'; id: 'D1' | 'D2'; answer: number; target: Target; min: number; max: number; mismatch: ((k: number) => World) | null };
+  | { kind: 'decide'; id: 'D1' | 'D2' | 'D3'; answer: number; target: Target; min: number; max: number; mismatch: ((k: number) => World) | null };
 
 export interface Script {
   start: World;
@@ -312,6 +315,7 @@ export function borrowScript(m: number, b: number, strategy: 'subtract_from_ten'
 /** 2つの場面のあいだを補間する（id でそろえる） */
 export function lerpWorld(a: World, b: World, t: number): World {
   return {
+    ...(b.miniLow ? { miniLow: true } : {}),
     bus: b.bus ? { seats: b.bus.seats, dx: (a.bus?.dx ?? 0) + (b.bus.dx - (a.bus?.dx ?? 0)) * t } : null,
     mini: t >= 0.5 ? b.mini : a.mini,
     blobs: b.blobs.map((q) => {
@@ -354,4 +358,181 @@ export function exploreWorld(ones: number, king: boolean, fill: FillOrder): Worl
     bus: null,
     mini: false,
   };
+}
+
+// ---------- v2.11 2けた（十の位は「10」のカード） ----------
+
+/** 10のカードの小さい大きさ（4枚ずつ、3段まで。9枚まで入る） */
+export const CARD_R = 20;
+/** i 枚目の10のカードの位置（10の部屋の中） */
+export const cardPos = (i: number) => ({ x: TENS.x + 45 + (i % 4) * 50, y: TENS.y + 60 + Math.floor(i / 4) * 46 });
+/** 開いた10の小さいフレーム（10の部屋の下側。カードの2段目より下） */
+export const MINI_LOW = { x: 30, y: 214, cell: 38, r: 15 };
+const miniLowPos = (i: number, fill: FillOrder) => {
+  const { col, row } = frameSlot(i, fill);
+  return { x: MINI_LOW.x + MINI_LOW.cell / 2 + col * MINI_LOW.cell, y: MINI_LOW.y + MINI_LOW.cell / 2 + row * MINI_LOW.cell };
+};
+/** たす数の10のカードが待つ場所（左下。4枚ずつ2段） */
+const cardWaitPos = (j: number) => ({ x: TENS.x + 45 + (j % 4) * 50, y: 360 + Math.floor(j / 4) * 46 });
+const card = (id: string, p: { x: number; y: number }, opacity = 1) => blob(id, p, CARD_R, 10, opacity, true);
+
+/**
+ * 2けたの繰り上がり a + b（b は 1けた か 2けた）。一の位は今の C と同じ「10をつくる」:
+ * フレームに a の一の位、下に b の一の位。b の一の位を「10−(aの一の位)」と のこりに分ける → 空席に入って 10 → 10のカードが1枚ふえる。
+ * b の10のカードは左下で待ち、さいごに 10の部屋へ入る。決定点: D1（空席に入れる数）と D3（ぜんぶで いくつ。選んでから仕組みを見る）。
+ */
+export function carry2Script(a: number, b: number, fill: FillOrder): Script {
+  const at = Math.floor(a / 10);
+  const ao = a % 10;
+  const bt = Math.floor(b / 10);
+  const bo = b % 10;
+  const toFill = 10 - ao;
+  const result = a + b;
+  const s0: World = {
+    blobs: [
+      ...Array.from({ length: at }, (_, i) => card(`A${i}`, cardPos(i))),
+      card('K', cardPos(at), 0),
+      ...Array.from({ length: bt }, (_, j) => card(`B${j}`, cardWaitPos(j))),
+      ...Array.from({ length: ao }, (_, i) => blob(`f${i}`, slotPos(i, fill), SLIME_R, ao)),
+      ...Array.from({ length: bo }, (_, j) => blob(`w${j}`, waitPos(j), WAIT.r, bo)),
+    ],
+    bus: null,
+    mini: false,
+  };
+  const split = (k: number) =>
+    moveBlobs(s0, (bl) => {
+      if (!bl.id.startsWith('w')) return null;
+      const j = Number(bl.id.slice(1));
+      return j < k ? waitPos(j) : waitPos(j - k, Math.ceil(k / 2) + 1);
+    });
+  const fillWith = (k: number) =>
+    moveBlobs(split(k), (bl) => {
+      if (!bl.id.startsWith('w')) return null;
+      const j = Number(bl.id.slice(1));
+      if (j >= k) return null;
+      return j < toFill ? { ...slotPos(ao + j, fill), r: SLIME_R } : { ...overflowPos(j - toFill), r: 20 };
+    });
+  const s1 = split(toFill);
+  const s2 = fillWith(toFill);
+  const kp = cardPos(at);
+  const s3 = moveBlobs(s2, (bl) => {
+    if (bl.id === 'K') return { opacity: 1 };
+    const inTen = bl.id.startsWith('f') || (bl.id.startsWith('w') && Number(bl.id.slice(1)) < toFill);
+    return inTen ? { x: kp.x, y: kp.y, r: 6, opacity: 0 } : null;
+  });
+  const s4 = moveBlobs(s3, (bl) => {
+    if (!bl.id.startsWith('w')) return null;
+    const j = Number(bl.id.slice(1));
+    return j >= toFill ? { ...slotPos(j - toFill, fill), r: SLIME_R } : null;
+  });
+  const s5 = moveBlobs(s4, (bl) => (bl.id.startsWith('B') ? cardPos(at + 1 + Number(bl.id.slice(1))) : null));
+  const steps: Step[] = [
+    { kind: 'decide', id: 'D1', answer: toFill, target: 'frame', min: 1, max: bo, mismatch: (k) => fillWith(k) },
+    { kind: 'scene', world: s1, ms: 800, label: 'わける' },
+    { kind: 'decide', id: 'D3', answer: result, target: 'total', min: 1, max: 99, mismatch: null },
+    { kind: 'scene', world: s2, ms: 900, label: 'あいている ところへ' },
+    { kind: 'scene', world: s3, ms: 1000, label: '10の まとまり' },
+    { kind: 'scene', world: s4, ms: 800, label: 'のこり' },
+  ];
+  if (bt > 0) steps.push({ kind: 'scene', world: s5, ms: 900, label: '10の カードも あわせる' });
+  return { start: s0, steps, predictAnswer: result, result };
+}
+
+/**
+ * 2けたの繰り下がり m − s（s は 1けた か 2けた。m の一の位 ＜ s の一の位）。一の位は今の C と同じ（減加法／減減法）。
+ * 10のカードの最後の1枚（K）を本人がタップして「ひらく」。s の10のカードの分は、さいごに うすくなって「とった」ことを残す。
+ * 決定点: D1（バスに のせる数）と D3（ぜんぶで いくつ のこるか。選んでから仕組みを見る）。
+ */
+export function borrow2Script(m: number, s: number, strategy: 'subtract_from_ten' | 'subtract_subtract', fill: FillOrder): Script {
+  const mt = Math.floor(m / 10);
+  const u = m % 10;
+  const st = Math.floor(s / 10);
+  const so = s % 10;
+  const result = m - s;
+  const kp = cardPos(mt - 1);
+  const s0: World = {
+    blobs: [
+      ...Array.from({ length: mt - 1 }, (_, i) => card(`M${i}`, cardPos(i))),
+      card('K', kp, 1),
+      ...Array.from({ length: 10 }, (_, i) => blob(`t${i}`, kp, 6, 10, 0)),
+      ...Array.from({ length: u }, (_, i) => blob(`f${i}`, slotPos(i, fill), SLIME_R, u)),
+    ],
+    bus: { seats: so, dx: 0 },
+    mini: false,
+    miniLow: true,
+  };
+  const open = (w: World) =>
+    moveBlobs(cloneWorld(w, { mini: true }), (bl) => {
+      if (bl.id === 'K') return { opacity: 0 };
+      if (bl.id.startsWith('t')) return { ...miniLowPos(Number(bl.id.slice(1)), fill), r: MINI_LOW.r, opacity: 1 };
+      return null;
+    });
+  const boardFromTen = (w: World, k: number, seat0: number) =>
+    moveBlobs(w, (bl) => {
+      if (!bl.id.startsWith('t')) return null;
+      const i = Number(bl.id.slice(1));
+      if (i >= k) return null;
+      const seat = seat0 + i;
+      return seat < so ? { ...seatPos(seat), r: WAIT.r } : { ...seatPos(seat + 2), r: WAIT.r };
+    });
+  const depart = (w: World) => {
+    const n = moveBlobs(w, (bl) => {
+      const onBus = bl.y > BUS.y && bl.opacity > 0.5 && !bl.king && bl.x >= BUS.x && bl.x < BOX.x;
+      return onBus ? { x: bl.x + BUS_DEPART, opacity: 0.55 } : null;
+    });
+    n.bus = { seats: so, dx: BUS_DEPART };
+    return n;
+  };
+  /** ひく数の10のカードの分（のこっているカードの うしろから st 枚）を、うすくして「とった」ことを残す */
+  const takeTens = (w: World) =>
+    moveBlobs(w, (bl) => {
+      if (!bl.id.startsWith('M')) return null;
+      const i = Number(bl.id.slice(1));
+      return i >= mt - 1 - st ? { opacity: 0.3 } : null;
+    });
+
+  const steps: Step[] = [];
+  if (strategy === 'subtract_from_ten') {
+    const s1 = open(s0);
+    const s2 = boardFromTen(s1, so, 0);
+    const s3 = depart(s2);
+    const s4 = moveBlobs(s3, (bl) => {
+      if (!bl.id.startsWith('t')) return null;
+      const i = Number(bl.id.slice(1));
+      return i >= so ? { ...slotPos(u + (i - so), fill), r: SLIME_R } : null;
+    });
+    steps.push(
+      { kind: 'tapKing' },
+      { kind: 'scene', world: s1, ms: 900, label: 'ひらく' },
+      { kind: 'decide', id: 'D1', answer: so, target: 'bus', min: 1, max: 9, mismatch: (k) => boardFromTen(s1, k, 0) },
+      { kind: 'scene', world: s2, ms: 900, label: 'のる' },
+      { kind: 'scene', world: s3, ms: 800, label: 'おでかけ' },
+      { kind: 'decide', id: 'D3', answer: result, target: 'total', min: 1, max: 99, mismatch: null },
+      { kind: 'scene', world: s4, ms: 900, label: 'あわせる' },
+    );
+    if (st > 0) steps.push({ kind: 'scene', world: takeTens(s4), ms: 900, label: '10の カードを とる' });
+  } else {
+    const rest = so - u;
+    const s1 = moveBlobs(s0, (bl) => (bl.id.startsWith('f') ? { ...seatPos(Number(bl.id.slice(1))), r: WAIT.r } : null));
+    const s2 = open(s1);
+    const s3 = boardFromTen(s2, rest, u);
+    const s4 = depart(s3);
+    const s5 = moveBlobs(s4, (bl) => {
+      if (!bl.id.startsWith('t')) return null;
+      const i = Number(bl.id.slice(1));
+      return i >= rest ? { ...slotPos(i - rest, fill), r: SLIME_R } : null;
+    });
+    steps.push(
+      { kind: 'scene', world: s1, ms: 900, label: 'ばらが のる' },
+      { kind: 'tapKing' },
+      { kind: 'scene', world: s2, ms: 900, label: 'ひらく' },
+      { kind: 'decide', id: 'D1', answer: rest, target: 'bus', min: 1, max: 9, mismatch: (k) => boardFromTen(s2, k, u) },
+      { kind: 'scene', world: s3, ms: 900, label: 'のる' },
+      { kind: 'scene', world: s4, ms: 800, label: 'おでかけ' },
+      { kind: 'decide', id: 'D3', answer: result, target: 'total', min: 1, max: 99, mismatch: null },
+      { kind: 'scene', world: s5, ms: 900, label: 'のこり' },
+    );
+    if (st > 0) steps.push({ kind: 'scene', world: takeTens(s5), ms: 900, label: '10の カードを とる' });
+  }
+  return { start: s0, steps, predictAnswer: result, result };
 }

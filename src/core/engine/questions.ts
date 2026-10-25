@@ -4,6 +4,7 @@ import { hasSameParityDistractor, makeDistractors, shuffle, type Rng } from '../
 import { canHalve, halfOf, halvingDistractors, HALVING_MAX, pickStart, START_MAX, START_MIN, startValues } from '../math/halving';
 import { givenEdges, goalOperands, GOAL_OF_CODE, parseGoalOperands, type ShapeGoal } from '../math/shapes';
 import { arrayAnswer, arrayDistractors, arrayPairs, isValidArrayOperands, SPLIT_MAX, FACTOR_MAX, type ArrayTask } from '../math/arrays';
+import { isValidTwoDigit, twoDigitAnswer, twoDigitDistractors, twoDigitPairs, TWO_DIGIT_MAX, type TwoDigitTask } from '../math/twodigit';
 import { uid } from '../time';
 
 export const OPERATION_OF: Record<TaskCategory, Operation> = {
@@ -25,7 +26,14 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   array_multiply: 'multiply',
   array_divide: 'divide',
   array_split: 'multiply',
+  carry_2d1: 'add',
+  borrow_2d1: 'subtract',
+  carry_2d2: 'add',
+  borrow_2d2: 'subtract',
 };
+
+/** v2.11 2けたの繰り上がり・繰り下がり（§9.3 の拡張）の課題か */
+export const isTwoDigitTask = (t: TaskCategory): t is TwoDigitTask => t === 'carry_2d1' || t === 'borrow_2d1' || t === 'carry_2d2' || t === 'borrow_2d2';
 
 /** v2.10 タイルの かけわり（§9.10）の課題か */
 export const isArrayTask = (t: TaskCategory): t is ArrayTask => t === 'array_multiply' || t === 'array_divide' || t === 'array_split';
@@ -35,7 +43,9 @@ export const GOAL_OF_TASK: Partial<Record<TaskCategory, ShapeGoal>> = { shape_ri
 export const isShapeGoalTask = (t: TaskCategory) => t in GOAL_OF_TASK;
 
 export function strategyFor(task: TaskCategory, mode: ModeId, settings: Readonly<AccessibilitySettings>): Strategy {
-  if (task === 'carry_over') return 'make_ten';
+  if (task === 'carry_over' || task === 'carry_2d1' || task === 'carry_2d2') return 'make_ten';
+  // v2.11: 2けたの一の位は C と同じ方略（設定の減加法／減減法）
+  if (task === 'borrow_2d1' || task === 'borrow_2d2') return settings.borrowStrategy;
   if (task === 'borrow') return mode === 'mode_d_exchange' ? 'count_up' : settings.borrowStrategy;
   return 'none';
 }
@@ -76,6 +86,12 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'array_split':
       // v2.10: かけざん・10と のこりは 行 × 列、わりざんは 列
       return arrayAnswer(task, operands);
+    case 'carry_2d1':
+    case 'borrow_2d1':
+    case 'carry_2d2':
+    case 'borrow_2d2':
+      // v2.11: 決定点の答えは「ぜんぶで いくつ」
+      return twoDigitAnswer(task, operands);
   }
 }
 
@@ -116,6 +132,11 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
     case 'array_divide':
     case 'array_split':
       return arrayAnswer(q.taskType, q.operands);
+    case 'carry_2d1':
+    case 'borrow_2d1':
+    case 'carry_2d2':
+    case 'borrow_2d2':
+      return twoDigitAnswer(q.taskType, q.operands);
   }
 }
 
@@ -132,6 +153,8 @@ export function distractorsFor(q: Pick<Question, 'taskType' | 'operands' | 'lear
   if (isShapeGoalTask(q.taskType)) return [];
   // v2.10: かけわりは、理由のある間違い（たした・1列ずれた・のこりを かけわすれた など）を候補にする（§9.10）
   if (isArrayTask(q.taskType)) return arrayDistractors(q.taskType, q.operands, count, rng);
+  // v2.11: 2けたは、くりあがりを わすれた・ひらいた 10を へらしわすれた などの理由のある間違い（§9.3）
+  if (isTwoDigitTask(q.taskType)) return twoDigitDistractors(q.taskType, q.operands, count, rng);
   const v = decisionValue(q);
   const range = distractorRange(q.taskType, q.learningStage);
   return makeDistractors(v, count, { ...range, sameParity: q.taskType === 'subitizing_678' }, rng);
@@ -180,6 +203,11 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
     case 'array_divide':
     case 'array_split':
       return arrayPairs(task);
+    case 'carry_2d1':
+    case 'borrow_2d1':
+    case 'carry_2d2':
+    case 'borrow_2d2':
+      return twoDigitPairs(task);
   }
 }
 
@@ -209,6 +237,10 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   array_multiply: 3,
   array_divide: 4,
   array_split: 5,
+  carry_2d1: 5,
+  borrow_2d1: 6,
+  carry_2d2: 6,
+  borrow_2d2: 7,
 };
 
 export interface GenerateOptions {
@@ -395,6 +427,7 @@ export function validateQuestion(q: Question): string[] {
     return errs;
   }
   if (isArrayTask(q.taskType) && !isValidArrayOperands(q.taskType, q.operands)) errs.push('かけわり: 行・列が範囲外か、割り切れない');
+  if (isTwoDigitTask(q.taskType) && !isValidTwoDigit(q.taskType, q.operands)) errs.push('2けた: 一の位で くりあがり／くりさがりがない、または答えが範囲外');
   if (q.taskType === 'balance' && !(a >= 6 && a <= 18 && b >= 1 && b <= 9 && a - b >= 1 && a - b <= 9)) errs.push('釣り合いの範囲外（左6〜18、右1〜9、足す重り1〜9）');
   const choices = q.distractors.length + 1;
   if (choices < 2 || choices > 4) errs.push('選択肢は2〜4個');
@@ -412,6 +445,8 @@ export function valueRange(task: TaskCategory): { min: number; max: number } {
   if (isShapeGoalTask(task)) return { min: 0, max: 4 };
   // v2.10: 行・列は 2〜19、答え（ぜんぶの数）は 19 × 9 まで
   if (isArrayTask(task)) return { min: 2, max: SPLIT_MAX * FACTOR_MAX };
+  // v2.11: 2けたは 99 まで（100 は Phase 5）
+  if (isTwoDigitTask(task)) return { min: 1, max: TWO_DIGIT_MAX };
   return { min: 0, max: 20 };
 }
 

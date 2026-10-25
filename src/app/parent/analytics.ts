@@ -162,6 +162,12 @@ export function heatAxis(task: TaskCategory, synthesisMax: number): HeatAxis {
       return { rows: range(2, 9), cols: range(2, 9), rowLabel: '行', colLabel: '列', valid: () => true, key: (r, c) => `${r},${c}` };
     case 'array_split':
       return { rows: range(2, 9), cols: range(11, 19), rowLabel: '行', colLabel: '列', valid: () => true, key: (r, c) => `${r},${c}` };
+    case 'carry_2d1':
+    case 'borrow_2d1':
+    case 'carry_2d2':
+    case 'borrow_2d2':
+      // v2.11: 組が多く、表にならない（課題別の集計表で見る）
+      return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };
     case 'array_divide':
       // v2.10: operands は [ぜんぶの数, 行]。表にせず、課題別の集計表で見る
       return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };
