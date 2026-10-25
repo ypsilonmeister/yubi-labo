@@ -16,6 +16,7 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   doubling: 'scale',
   period: 'cycle',
   halving: 'halve',
+  shapes: 'draw',
 };
 
 export function strategyFor(task: TaskCategory, mode: ModeId, settings: Readonly<AccessibilitySettings>): Strategy {
@@ -44,7 +45,8 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'arrays':
     case 'doubling':
     case 'period':
-      // じっけんラボは自由探索のみ（expectedValue は null で出す）
+    case 'shapes':
+      // じっけんラボ・ジオボードは自由探索のみ（expectedValue は null で出す）
       return operands[0] ?? 0;
     case 'halving':
       // v2.7: 整数の半分（奇数は出題しないので割り切れる）
@@ -77,6 +79,7 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
     case 'arrays':
     case 'doubling':
     case 'period':
+    case 'shapes':
       return a ?? 0;
     case 'halving':
       return a / 2;
@@ -126,6 +129,7 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
     case 'arrays':
     case 'doubling':
     case 'period':
+    case 'shapes':
       return [];
     case 'halving':
       // 新しい列の出発値（4けた・32の倍数）。続きの問題は nextInChain で作る
@@ -152,6 +156,7 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   doubling: 0,
   period: 0,
   halving: 5,
+  shapes: 0,
 };
 
 export interface GenerateOptions {

@@ -13,6 +13,7 @@ export const TASK_LABEL: Record<TaskCategory, string> = {
   doubling: 'ふえる・わける',
   period: 'れっしゃ',
   halving: 'はんぶん',
+  shapes: 'かたち づくり',
 };
 
 export function taskLabel(task: TaskCategory, mode: ModeId): string {
@@ -43,6 +44,7 @@ export const TASK_LABEL_PARENT: Record<TaskCategory, string> = {
   doubling: '倍と半分（探索）',
   period: '周期・公倍数（探索）',
   halving: '4けたから半分（連続）',
+  shapes: '図形（直角・三角形・四角形・探索）',
 };
 
 export const MODE_LABEL_PARENT: Record<ModeId, string> = {
@@ -55,6 +57,7 @@ export const MODE_LABEL_PARENT: Record<ModeId, string> = {
   mode_g_doubling: 'G ばいばいラボ',
   mode_h_trains: 'H ぼうの れっしゃ',
   mode_i_halving: 'I はんぶんチャレンジ',
+  mode_j_geoboard: 'J ジオボード',
 };
 
 export const STAGE_LABEL_PARENT: Record<LearningStage, string> = {

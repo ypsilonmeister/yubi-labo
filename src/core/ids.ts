@@ -15,6 +15,7 @@ export const ALL_TASKS: readonly TaskCategory[] = [
   'doubling',
   'period',
   'halving',
+  'shapes',
 ];
 
 export const ALL_MODES: readonly ModeId[] = [
@@ -27,4 +28,5 @@ export const ALL_MODES: readonly ModeId[] = [
   'mode_g_doubling',
   'mode_h_trains',
   'mode_i_halving',
+  'mode_j_geoboard',
 ];

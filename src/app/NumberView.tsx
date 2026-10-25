@@ -43,6 +43,7 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
     case 'arrays':
     case 'doubling':
     case 'period':
+    case 'shapes':
       return [];
     case 'halving': {
       // v2.7: 出題中は「〜の はんぶん は ？」だけ。答えは試行が終わってから

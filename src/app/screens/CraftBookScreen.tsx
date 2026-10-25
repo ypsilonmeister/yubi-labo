@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import type { AccessibilitySettings, CraftEntry } from '../../core/types';
 import { numberColor, OUTLINE, TILE } from '../../core/colors';
 import { PlateIcon } from '../../modes/shared/Plate';
+import { ShapeGlyph } from '../../modes/geoboard/ShapeGlyph';
 
 type S = Readonly<AccessibilitySettings>;
 
@@ -97,6 +98,8 @@ function Discovery({ e, s }: { e: CraftEntry; s: S }) {
       );
     case 'fraction':
       return <Pie parts={e.parts[0]} />;
+    case 'shape':
+      return <ShapeGlyph code={e.parts[0]} />;
     case 'period':
       return (
         <span className="book-trains">

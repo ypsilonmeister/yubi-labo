@@ -9,6 +9,7 @@ import { SeesawMode } from './seesaw/SeesawMode';
 import { DoublingMode } from './doubling/DoublingMode';
 import { TrainsMode } from './trains/TrainsMode';
 import { HalvingMode } from './halving/HalvingMode';
+import { GeoboardMode } from './geoboard/GeoboardMode';
 
 let done = false;
 export function registerModes() {
@@ -25,4 +26,6 @@ export function registerModes() {
   GameRegistry.register(TrainsMode);
   // v2.7 はんぶんチャレンジ（§22）
   GameRegistry.register(HalvingMode);
+  // v2.8 ジオボード（§9.8）
+  GameRegistry.register(GeoboardMode);
 }
