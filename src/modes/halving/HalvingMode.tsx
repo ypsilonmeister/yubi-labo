@@ -58,7 +58,7 @@ function Field(props: { n: number; shown: Shown; s: S; hint: number; ok: boolean
   }
   const plateW = plateCounts ? columnsWidth(plateCounts, platePlaces, true) : 0;
   // おさらの丸いふちに かからないよう、内側に余白をとる
-  const scale = plateW ? Math.min(0.75, (PLATE.w - 90) / plateW) : 1;
+  const scale = plateW ? Math.min(0.75, (PLATE.w - 56) / plateW) : 1;
   const plateX = (i: number) => (W - 2 * PLATE.w - PLATE.gap) / 2 + i * (PLATE.w + PLATE.gap);
   const plateValue = shown.kind === 'wrong' ? shown.chosen : shown.kind === 'split' && k >= steps && !shown.ghost ? plan.half : null;
 
