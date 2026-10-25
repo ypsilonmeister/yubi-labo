@@ -9,7 +9,7 @@ const MODES: Record<ModeId, TaskCategory[]> = {
   mode_a_parity: ['subitizing_678', 'numeral_quantity', 'synthesis_5', 'complement_10'],
   mode_b_rods: ['subitizing_678', 'synthesis_5', 'complement_10'],
   mode_c_tenframe: ['complement_10', 'carry_over', 'borrow', 'carry_2d1', 'borrow_2d1', 'carry_2d2', 'borrow_2d2'],
-  mode_d_exchange: ['carry_over', 'borrow'],
+  mode_d_exchange: ['carry_over', 'borrow', 'carry_2d1', 'borrow_2d1', 'carry_2d2', 'borrow_2d2'],
   mode_e_tiles: [],
   mode_f_seesaw: ['balance'],
   mode_g_doubling: [],

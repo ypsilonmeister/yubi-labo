@@ -71,6 +71,11 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
       const so = b % 10;
       const tensLeft = a - u - 10 - (b - so);
       const onesLeft = 10 - so + u;
+      if (q.strategy === 'count_up') {
+        // D（お店）: ねだんの十の位と一の位のぶんを10円で はらって、お釣りを もらう
+        const paid = b - so + 10;
+        return [`${paid} えん はらう`, `${b} と ${10 - so} で ${paid}（おつり ${10 - so}）`, `${tensLeft} と ${10 - so} と ${u} で ${a - b}`, `${a} − ${b} = ${a - b}`];
+      }
       const onesLines =
         q.strategy === 'subtract_subtract'
           ? [`${so} を ${u} と ${so - u} に わける`, `10 から ${so - u} を とって ${onesLeft}`]

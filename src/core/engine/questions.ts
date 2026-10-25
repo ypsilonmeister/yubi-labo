@@ -45,7 +45,7 @@ export const isShapeGoalTask = (t: TaskCategory) => t in GOAL_OF_TASK;
 export function strategyFor(task: TaskCategory, mode: ModeId, settings: Readonly<AccessibilitySettings>): Strategy {
   if (task === 'carry_over' || task === 'carry_2d1' || task === 'carry_2d2') return 'make_ten';
   // v2.11: 2けたの一の位は C と同じ方略（設定の減加法／減減法）
-  if (task === 'borrow_2d1' || task === 'borrow_2d2') return settings.borrowStrategy;
+  if (task === 'borrow_2d1' || task === 'borrow_2d2') return mode === 'mode_d_exchange' ? 'count_up' : settings.borrowStrategy;
   if (task === 'borrow') return mode === 'mode_d_exchange' ? 'count_up' : settings.borrowStrategy;
   return 'none';
 }
