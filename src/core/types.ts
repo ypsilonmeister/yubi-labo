@@ -24,7 +24,12 @@ export type TaskCategory =
   // 実装拡張（v2.10・§9.10 タイルの かけわり）
   | 'array_multiply'
   | 'array_divide'
-  | 'array_split';
+  | 'array_split'
+  // 実装拡張（v2.11・§9.3 の拡張 2けたの繰り上がり・繰り下がり）
+  | 'carry_2d1'
+  | 'borrow_2d1'
+  | 'carry_2d2'
+  | 'borrow_2d2';
 
 export type ModeId =
   | 'mode_a_parity'

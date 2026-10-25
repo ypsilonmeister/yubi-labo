@@ -20,6 +20,10 @@ export const TASK_LABEL: Record<TaskCategory, string> = {
   array_multiply: 'いくつ ある',
   array_divide: 'わけて ならべる',
   array_split: '10と のこり',
+  carry_2d1: '2けたで あふれて 10',
+  borrow_2d1: '2けたで 10を ひらく',
+  carry_2d2: '2けた どうしで あふれて 10',
+  borrow_2d2: '2けた どうしで 10を ひらく',
 };
 
 export function taskLabel(task: TaskCategory, mode: ModeId): string {
@@ -57,6 +61,10 @@ export const TASK_LABEL_PARENT: Record<TaskCategory, string> = {
   array_multiply: '掛け算（タイルの配列）',
   array_divide: '割り算（割り切れる）',
   array_split: '2けた×1けた（10と残りに分ける）',
+  carry_2d1: '2けた＋1けたの繰り上がり',
+  borrow_2d1: '2けた−1けたの繰り下がり',
+  carry_2d2: '2けた＋2けたの繰り上がり',
+  borrow_2d2: '2けた−2けたの繰り下がり',
 };
 
 export const MODE_LABEL_PARENT: Record<ModeId, string> = {

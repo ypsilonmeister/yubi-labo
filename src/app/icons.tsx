@@ -117,6 +117,24 @@ function GeoboardIcon({ triangle }: { triangle?: boolean }) {
   );
 }
 
+/** v2.11 2けた: 10のカードが何枚かと、10フレーム（くりあがり）／ひらいた 10（くりさがり） */
+function TwoDigitIcon({ c, borrow }: { c: (n: number) => string; borrow?: boolean }) {
+  const cardEl = (x: number, y: number, k: string, faded?: boolean) => <rect key={k} x={x} y={y} width={22} height={18} rx={3} fill={c(10)} stroke={OUTLINE} strokeWidth={1.5} opacity={faded ? 0.35 : 1} />;
+  return (
+    <g>
+      {cardEl(6, 24, 'a')}
+      {cardEl(32, 24, 'b')}
+      {cardEl(6, 46, 'c', borrow)}
+      <g transform="translate(58 30)">
+        <PlateCells cells={plateCells(borrow ? 5 : 10)} cell={8} color={c(borrow ? 5 : 10)} />
+      </g>
+      <g transform="translate(58 62)">
+        <PlateCells cells={plateCells(3)} cell={8} color={c(3)} />
+      </g>
+    </g>
+  );
+}
+
 /** v2.10 タイルの かけわり: 配列（かけざん）／左の山から右の れつへ（わりざん）／10の列と のこり（10と のこり） */
 function ArraysIcon({ kind }: { kind: 'multiply' | 'divide' | 'split' }) {
   const tile = (x: number, y: number, k: string, size = 9) => <rect key={k} x={x} y={y} width={size} height={size} rx={1.5} fill={TILE.fill} stroke={TILE.stroke} strokeWidth={1} />;
@@ -242,6 +260,8 @@ export function TaskIcon({ task, s, size = 72 }: { task: TaskCategory; s: S; siz
       {task === 'halving' && <HalvingIcon />}
       {(task === 'shapes' || task === 'shape_right' || task === 'shape_rectangle') && <GeoboardIcon />}
       {task === 'shape_triangle' && <GeoboardIcon triangle />}
+      {(task === 'carry_2d1' || task === 'carry_2d2') && <TwoDigitIcon c={c} />}
+      {(task === 'borrow_2d1' || task === 'borrow_2d2') && <TwoDigitIcon c={c} borrow />}
       {task === 'array_multiply' && <ArraysIcon kind="multiply" />}
       {task === 'array_divide' && <ArraysIcon kind="divide" />}
       {task === 'array_split' && <ArraysIcon kind="split" />}

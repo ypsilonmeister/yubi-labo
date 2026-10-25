@@ -22,6 +22,10 @@ export const ALL_TASKS: readonly TaskCategory[] = [
   'array_multiply',
   'array_divide',
   'array_split',
+  'carry_2d1',
+  'borrow_2d1',
+  'carry_2d2',
+  'borrow_2d2',
 ];
 
 export const ALL_MODES: readonly ModeId[] = [

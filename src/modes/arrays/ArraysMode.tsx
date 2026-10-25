@@ -14,32 +14,10 @@ import { ModeLayout } from '../kit/ui';
 import { PLACE_BG, PLACE_STROKE, SLOT_STROKE, SLOT_STROKE_STRONG, TILE } from '../../core/colors';
 import { choicesOf } from '../../core/engine/questions';
 import { arrayAnswer, arrayShape, splitParts, type ArrayTask } from '../../core/math/arrays';
-import { digits5 } from '../../core/math/halving';
 import { arrange } from '../../core/math/tiles';
-import type { AccessibilitySettings } from '../../core/types';
-import { columnHeight, Columns, columnsWidth } from '../shared/PlaceBlocks';
+import { NumberChoice as ChoiceNode } from '../shared/NumberChoice';
 import { geometry, lerpPos, targets, TILE_AREA, TileField, type Pos } from '../shared/TileField';
 import { TileLab } from '../tiles/TilesMode';
-
-type S = Readonly<AccessibilitySettings>;
-
-const PLACES4 = [3, 2, 1, 0];
-
-/** 手札: 数字（数字のふだ ON）と、位のまとまりの小さな絵（はんぶんチャレンジと同じ） */
-function ChoiceNode({ v, s }: { v: number; s: S }) {
-  const counts = digits5(v);
-  const w = Math.max(40, columnsWidth(counts, PLACES4));
-  const h = Math.max(12, ...PLACES4.filter((p) => counts[p] > 0).map((p) => columnHeight(p, counts[p])));
-  const sc = Math.min(0.5, 170 / w);
-  return (
-    <span className="halving-choice">
-      {s.numberLabels && <span className="numeral-card">{v}</span>}
-      <svg width={Math.max(60, w * sc + 8)} height={h * sc + 8} viewBox={`-4 -4 ${w + 8} ${h + 8}`} aria-hidden>
-        <Columns counts={counts} x={0} y={0} places={PLACES4} />
-      </svg>
-    </span>
-  );
-}
 
 /** 列 k まで（0 始まりで k 列ぶん）を囲む枠 */
 function ColumnsFrame({ n, rows, k, strong }: { n: number; rows: number; k: number; strong?: boolean }) {

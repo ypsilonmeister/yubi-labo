@@ -12,6 +12,7 @@ import { numberColor, OUTLINE, SLOT_FILL, SLOT_STROKE, SLOT_STROKE_STRONG, inkOn
 import { choicesOf } from '../../core/engine/questions';
 import { makeDistractors, narrowToTwo, shuffle } from '../../core/math/choices';
 import type { AccessibilitySettings } from '../../core/types';
+import { NumberChoice } from '../shared/NumberChoice';
 import {
   BOX,
   BOX_R,
@@ -23,7 +24,10 @@ import {
   W,
   boxPos,
   borrowScript,
+  borrow2Script,
   carryScript,
+  carry2Script,
+  MINI_LOW,
   complementScript,
   exploreAddScenes,
   countWorld,
@@ -54,19 +58,21 @@ function Tile({ b, s }: { b: Blob; s: S }) {
   if (b.king) {
     const color = numberColor(10, s.colorScheme);
     const ink = inkOn(color);
+    // v2.11: 2けたでは小さいカードを何枚も並べる。k = 1 のとき（今までの大きさ）は前と同じ形
+    const k = r / 62;
     const w = r * 2.3;
     const h = r * 2;
     return (
       <g opacity={b.opacity} pointerEvents="none">
-        <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={14} fill={color} stroke={OUTLINE} strokeWidth={4} />
+        <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={14 * k} fill={color} stroke={OUTLINE} strokeWidth={k < 0.6 ? 2.5 : 4} />
         {s.numberLabels && (
-          <text x={x} y={y - h / 2 + 52} textAnchor="middle" fontSize={50} fontWeight={800} fill={ink}>
+          <text x={x} y={y - h / 2 + 52 * k} textAnchor="middle" fontSize={50 * k} fontWeight={800} fill={ink}>
             10
           </text>
         )}
         {Array.from({ length: 10 }, (_, i) => {
-          const p = pairPos(i, x - 36, s.numberLabels ? y + 22 : y - 9, 18, 18);
-          return <rect key={i} x={p.x - 6} y={p.y - 6} width={12} height={12} rx={2} fill={ink} opacity={0.55} />;
+          const p = pairPos(i, x - 36 * k, s.numberLabels ? y + 22 * k : y - 9 * k, 18 * k, 18 * k);
+          return <rect key={i} x={p.x - 6 * k} y={p.y - 6 * k} width={12 * k} height={12 * k} rx={2 * k} fill={ink} opacity={0.55} />;
         })}
       </g>
     );
@@ -98,10 +104,15 @@ function Chips({ world }: { world: World }) {
   const c = countWorld(world);
   const zoneMaxX = (z: keyof ReturnType<typeof countWorld>) => Math.max(...world.blobs.filter((b) => zoneOf(world, b) === z).map((b) => b.x + b.r), -Infinity);
   const zoneMinY = (z: keyof ReturnType<typeof countWorld>) => Math.min(...world.blobs.filter((b) => zoneOf(world, b) === z).map((b) => b.y - b.r), Infinity);
-  const tens = c.kings * 10 + c.opened;
+  // v2.11: 10の部屋の中のカードだけを数える（左下で待っている たす数のカードは、別のふだ）
+  const inRoom = (b: Blob) => b.x >= TENS.x && b.x <= TENS.x + TENS.w && b.y >= TENS.y && b.y <= TENS.y + TENS.h;
+  const cards = world.blobs.filter((b) => b.king && b.opacity >= 0.5);
+  const waitCards = cards.filter((b) => !inRoom(b));
+  const tens = cards.filter(inRoom).length * 10 + c.opened;
   return (
     <g>
       <NumChip x={TENS.x + TENS.w - 70} y={TENS.y + 6} n={tens} size={28} />
+      {waitCards.length > 0 && <NumChip x={Math.max(...waitCards.map((b) => b.x + b.r * 1.15)) + 10} y={Math.min(...waitCards.map((b) => b.y)) - 18} n={waitCards.length * 10} size={26} />}
       <NumChip x={FRAME.x + 110} y={FRAME.y - 40} n={c.ones} size={28} />
       {c.overflow > 0 && <NumChip x={W - 70} y={FRAME.y + 2 * FRAME.cell + 4} n={c.overflow} size={26} />}
       {c.waiting > 0 && <NumChip x={Math.min(W - 70, zoneMaxX('waiting') + 12)} y={Math.max(300, zoneMinY('waiting') - 4)} n={c.waiting} size={26} />}
@@ -122,14 +133,19 @@ interface FieldProps {
   emphasize?: Target | null;
   boxValue?: number | null;
   showBox?: boolean;
+  /** v2.11: 箱で選ぶもの（box: むれ／total: ぜんぶで いくつ。2けた） */
+  boxTarget?: 'box' | 'total';
   glow?: boolean;
   onTarget?: (t: Target) => void;
   thumb?: boolean;
 }
 
-function Field({ world, s, emphasize, boxValue, showBox, glow, onTarget, thumb }: FieldProps) {
+function Field({ world, s, emphasize, boxValue, showBox, boxTarget = 'box', glow, onTarget, thumb }: FieldProps) {
   const emptyStrong = s.highlightEmptySlots;
   const bus = world.bus;
+  // ひらく 10のカード（2けたでは最後の1枚。今までは 10の部屋のまんなか）
+  const openCard = world.blobs.find((b) => b.id === 'K') ?? null;
+  const tapAt = openCard ? { x: openCard.x, y: openCard.y, r: openCard.r } : KING;
   const busW = bus ? Math.ceil(bus.seats / 2) * 56 + 20 : 0;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={thumb ? undefined : 'field-svg'} width={thumb ? 150 : undefined} height={thumb ? (150 * H) / W : undefined} aria-hidden={thumb}>
@@ -144,6 +160,7 @@ function Field({ world, s, emphasize, boxValue, showBox, glow, onTarget, thumb }
         Array.from({ length: 10 }, (_, i) => {
           const col = Math.floor(i / 2);
           const row = i % 2;
+          if (world.miniLow) return <rect key={i} x={MINI_LOW.x + col * MINI_LOW.cell} y={MINI_LOW.y + row * MINI_LOW.cell} width={MINI_LOW.cell} height={MINI_LOW.cell} fill="none" stroke={SLOT_STROKE} strokeWidth={2} />;
           return <rect key={i} x={30 + col * 42} y={119 + row * 42} width={42} height={42} fill="none" stroke={SLOT_STROKE} strokeWidth={2} />;
         })}
       {/* 1の部屋（10フレーム） */}
@@ -186,11 +203,13 @@ function Field({ world, s, emphasize, boxValue, showBox, glow, onTarget, thumb }
       {/* ？の箱 */}
       {showBox && (
         <g>
-          <rect x={BOX.x} y={BOX.y} width={BOX.w} height={BOX.h} rx={18} fill="#f6f1e6" stroke={emphasize === 'box' ? SLOT_STROKE_STRONG : SLOT_STROKE} strokeWidth={emphasize === 'box' ? 6 : 3} strokeDasharray="12 8" />
+          <rect x={BOX.x} y={BOX.y} width={BOX.w} height={BOX.h} rx={18} fill="#f6f1e6" stroke={emphasize === boxTarget ? SLOT_STROKE_STRONG : SLOT_STROKE} strokeWidth={emphasize === boxTarget ? 6 : 3} strokeDasharray="12 8" />
           {boxValue == null ? (
             <text x={BOX.x + BOX.w / 2} y={BOX.y + 82} textAnchor="middle" fontSize={56} fill={SLOT_STROKE}>
               ?
             </text>
+          ) : boxTarget === 'total' ? (
+            <TotalInBox v={boxValue} s={s} />
           ) : (
             <>
               {Array.from({ length: boxValue }, (_, j) => (
@@ -212,11 +231,30 @@ function Field({ world, s, emphasize, boxValue, showBox, glow, onTarget, thumb }
         <>
           <rect data-drop="frame" x={FRAME.x} y={FRAME.y} width={FRAME.cell * 5} height={FRAME.cell * 2} fill="transparent" onClick={() => onTarget('frame')} style={{ cursor: 'pointer' }} />
           {bus && <rect data-drop="bus" x={BUS.x + bus.dx - 10} y={BUS.y - 10} width={Math.max(busW, 200) + 20} height={BUS.h + 30} fill="transparent" onClick={() => onTarget('bus')} style={{ cursor: 'pointer' }} />}
-          {showBox && <rect data-drop="box" x={BOX.x} y={BOX.y} width={BOX.w} height={BOX.h} fill="transparent" onClick={() => onTarget('box')} style={{ cursor: 'pointer' }} />}
-          <circle data-drop="king" cx={KING.x} cy={KING.y} r={KING.r + 30} fill="transparent" onClick={() => onTarget('king')} style={{ cursor: 'pointer' }} />
+          {showBox && <rect data-drop={boxTarget} x={BOX.x} y={BOX.y} width={BOX.w} height={BOX.h} fill="transparent" onClick={() => onTarget(boxTarget)} style={{ cursor: 'pointer' }} />}
+          <circle data-drop="king" cx={tapAt.x} cy={tapAt.y} r={tapAt.r + 30} fill="transparent" onClick={() => onTarget('king')} style={{ cursor: 'pointer' }} />
         </>
       )}
     </svg>
+  );
+}
+
+/** v2.11 ？の箱に置いた「ぜんぶで いくつ」。10のカード（小）と ばらで見せ、数字のふだ ON なら数字も出す */
+function TotalInBox({ v, s }: { v: number; s: S }) {
+  const t = Math.floor(v / 10);
+  const o = v % 10;
+  const color = numberColor(10, s.colorScheme);
+  const x0 = BOX.x + 18;
+  return (
+    <g pointerEvents="none">
+      {Array.from({ length: t }, (_, i) => (
+        <rect key={`t${i}`} x={x0 + i * 26} y={BOX.y + 22} width={22} height={34} rx={4} fill={color} stroke={OUTLINE} strokeWidth={2} />
+      ))}
+      {Array.from({ length: o }, (_, j) => (
+        <rect key={`o${j}`} x={x0 + j * 22} y={BOX.y + 76} width={18} height={18} rx={3} fill={numberColor(Math.max(1, o), s.colorScheme)} stroke={OUTLINE} strokeWidth={1.5} />
+      ))}
+      {s.numberLabels && <NumChip x={BOX.x + BOX.w - 82} y={BOX.y + BOX.h - 52} n={v} size={30} />}
+    </g>
   );
 }
 
@@ -265,6 +303,7 @@ function splitSource(core: TrialCore, target: Target): { n: number; tone: number
     const second = core.settings.carryFirstOperand === 'larger' ? Math.min(a, b) : b;
     return { n: second, tone: second, label: 'まっている むれ' };
   }
+  if (core.q.taskType === 'carry_2d1' || core.q.taskType === 'carry_2d2') return { n: b % 10, tone: b % 10, label: 'まっている むれ' };
   return { n: 9, tone: 1, label: 'タイル' };
 }
 
@@ -281,6 +320,9 @@ function scriptFor(core: TrialCore): Script {
   const { q, settings: s } = core;
   const fill = s.tenFrameFill;
   if (q.taskType === 'carry_over') return carryScript(q.operands[0], q.operands[1], s.carryFirstOperand, fill);
+  // v2.11: 2けた（十の位は 10のカード、一の位は 10フレーム）
+  if (q.taskType === 'carry_2d1' || q.taskType === 'carry_2d2') return carry2Script(q.operands[0], q.operands[1], fill);
+  if (q.taskType === 'borrow_2d1' || q.taskType === 'borrow_2d2') return borrow2Script(q.operands[0], q.operands[1], q.strategy === 'subtract_subtract' ? 'subtract_subtract' : 'subtract_from_ten', fill);
   if (q.taskType === 'borrow') return borrowScript(q.operands[0], q.operands[1], q.strategy === 'subtract_subtract' ? 'subtract_subtract' : 'subtract_from_ten', fill);
   return complementScript(q.operands[0], fill);
 }
@@ -290,6 +332,8 @@ const PROMPT: Record<string, string> = {
   complement_D1: 'あいている ところに はいるのは どの むれかな',
   borrow_D1: 'バスの せきに のるのは どの むれかな',
   borrow_D2: 'のこりを あわせると どの むれに なるかな',
+  carry_D3: 'ぜんぶで いくつに なるかな',
+  borrow_D3: 'ぜんぶで いくつ のこるかな',
   tapKing: '10の へやの 10の カードを タップすると ひらくよ',
   carry_predict: 'あふれて 1の へやに のこるのは どの むれかな',
   complement_predict: 'あいている ところに はいるのは どの むれかな',
@@ -304,13 +348,17 @@ const DIRECT_PROMPT: Record<string, string> = {
 };
 
 function taskKey(core: TrialCore): 'carry' | 'borrow' | 'complement' {
-  return core.q.taskType === 'carry_over' ? 'carry' : core.q.taskType === 'borrow' ? 'borrow' : 'complement';
+  const t = core.q.taskType;
+  if (t === 'carry_over' || t === 'carry_2d1' || t === 'carry_2d2') return 'carry';
+  if (t === 'borrow' || t === 'borrow_2d1' || t === 'borrow_2d2') return 'borrow';
+  return 'complement';
 }
 
 /** 本人がクラフト図鑑に残すもの（作ったもの） */
 function craftOf(core: TrialCore) {
   const [a, b] = core.q.operands;
-  if (core.q.taskType === 'carry_over') core.ctx.craft(a + b, [a, b]);
+  if (core.q.taskType === 'carry_over' || core.q.taskType === 'carry_2d1' || core.q.taskType === 'carry_2d2') core.ctx.craft(a + b, [a, b]);
+  else if (core.q.taskType === 'borrow_2d1' || core.q.taskType === 'borrow_2d2') return;
   else if (core.q.taskType === 'complement_10') core.ctx.craft(10, [a, 10 - a]);
   else if (core.q.strategy === 'subtract_from_ten') core.ctx.craft(a - b, [10 - b, a - 10]);
 }
@@ -335,18 +383,29 @@ function ConstructTask({ core }: { core: TrialCore }) {
   // v2.2 ダイレクト操作: 置く決定（フレーム・バス）は「ちぎる位置」をタップ。？の箱を選ぶ決定は省き、置き終わったらそのまま最後まで見せる
   const direct = core.direct;
   const skipStep = (x: Step) => direct && x.kind === 'decide' && x.target === 'box';
-  const showBox = script.steps.some((x) => x.kind === 'decide' && x.target === 'box' && !skipStep(x));
+  const showBox = script.steps.some((x) => x.kind === 'decide' && (x.target === 'box' || x.target === 'total') && !skipStep(x));
+  // v2.11: 2けたでは、箱で「ぜんぶで いくつ」を選ぶ（ダイレクト操作でも省かない）
+  const boxTarget: 'box' | 'total' = script.steps.some((x) => x.kind === 'decide' && x.target === 'total') ? 'total' : 'box';
   const splitting = direct && !!decide && (decide.target === 'frame' || decide.target === 'bus');
   const [placed, setPlaced] = useState(false);
   const base = (w: World) => (direct ? hideWaiting(w) : w);
 
+  const total = decide?.target === 'total';
   const choices = useMemo(() => {
     if (!decide) return [];
+    // v2.11: 「ぜんぶで いくつ」は、出題の誤答候補（理由のある間違い）を使う
+    if (decide.target === 'total') return choicesOf(core.q);
     const ds = makeDistractors(decide.answer, core.ctx.learning.choiceCount - 1, { min: decide.min, max: decide.max });
     return shuffle([decide.answer, ...ds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decide, core.ctx.learning.choiceCount]);
-  const values = core.hintLevel >= 2 && decide ? choices.filter((v) => narrowToTwo(decide.answer, choices.filter((c) => c !== decide.answer)).includes(v)) : choices;
-  const items = groupChoices(values, s);
+  const values =
+    core.hintLevel >= 2 && decide
+      ? total
+        ? choices.filter((v) => v === decide.answer || v === core.q.distractors[0])
+        : choices.filter((v) => narrowToTwo(decide.answer, choices.filter((c) => c !== decide.answer)).includes(v))
+      : choices;
+  const items: ChoiceItem[] = total ? values.map((v) => ({ key: `n-${v}`, value: v, label: s.numberLabels ? `${v}` : 'この かず', node: <NumberChoice v={v} s={s} /> })) : groupChoices(values, s);
 
   /** 決定点または「ひらく」まで場面を自動で進める */
   const playFrom = async (from: number, base: World) => {
@@ -415,7 +474,7 @@ function ConstructTask({ core }: { core: TrialCore }) {
     const correct = k === decide.answer;
     core.ctx.emit({ type: 'attempt', payload: { step: decide.id, value: k } });
     core.ctx.emit({ type: 'decision_made', payload: { step: decide.id, value: k, correct } });
-    if (decide.target === 'box') {
+    if (decide.target === 'box' || decide.target === 'total') {
       // 選んでから、仕組みを再生して比べる（再生は1回だけ）
       setBoxValue(k);
       if (!correct) core.mistakes.current++;
@@ -465,7 +524,16 @@ function ConstructTask({ core }: { core: TrialCore }) {
       prompt={prompt}
       field={
         <div style={{ position: 'relative', width: '100%' }}>
-          <Field world={splitting && !placed ? base(world) : world} s={s} emphasize={emphasize} boxValue={core.demo === 'place' && decide?.target === 'box' ? decide.answer : boxValue} showBox={showBox} glow={ok} onTarget={(t) => void onTarget(t)} />
+          <Field
+            world={splitting && !placed ? base(world) : world}
+            s={s}
+            emphasize={emphasize}
+            boxValue={core.demo === 'place' && (decide?.target === 'box' || decide?.target === 'total') ? decide.answer : boxValue}
+            showBox={showBox}
+            boxTarget={boxTarget}
+            glow={ok}
+            onTarget={(t) => void onTarget(t)}
+          />
           {demoWorld && (
             <div style={{ position: 'absolute', inset: 0, opacity: 0.45, pointerEvents: 'none' }}>
               <Field world={demoWorld} s={s} />
@@ -473,7 +541,7 @@ function ConstructTask({ core }: { core: TrialCore }) {
           )}
         </div>
       }
-      history={<HistoryStrip items={history.map((h, i) => ({ key: String(i), node: <Field world={h} s={s} thumb showBox={showBox} /> }))} />}
+      history={<HistoryStrip items={history.map((h, i) => ({ key: String(i), node: <Field world={h} s={s} thumb showBox={showBox} boxTarget={boxTarget} /> }))} />}
       tray={
         splitting && decide ? (
           <SplitPicker
@@ -494,6 +562,7 @@ function ConstructTask({ core }: { core: TrialCore }) {
             selected={pick.selected}
             onTap={(it) => pick.toggle(it.key, it.value)}
             drag={s.inputMethod === 'drag'}
+            snap={decide.target === 'total' ? core.snap('total') : undefined}
             onDrop={(it, id) => {
               if (id === decide.target) {
                 pick.clear();
@@ -713,13 +782,18 @@ export const TenFrameMode = createReactPlugin(
   {
     id: 'mode_c_tenframe',
     title: '10の へや',
-    description: '2行×5列の10フレーム。空席を静的に示し、繰り上がりは「10をつくる」、繰り下がりは減加法（設定で減減法）で、分解・合体を1段階ずつ見せる。',
-    supportedTasks: ['complement_10', 'carry_over', 'borrow'],
+    description: '2行×5列の10フレーム。空席を静的に示し、繰り上がりは「10をつくる」、繰り下がりは減加法（設定で減減法）で、分解・合体を1段階ずつ見せる。v2.11 で2けた（十の位は10のカード）の繰り上がり・繰り下がりを足した。',
+    // v2.11: 2けたの課題は、今の課題のあと（おまかせ進行では、今の課題が済んでから出る）
+    supportedTasks: ['complement_10', 'carry_over', 'borrow', 'carry_2d1', 'borrow_2d1', 'carry_2d2', 'borrow_2d2'],
     supportedStrategies: ['make_ten', 'subtract_from_ten', 'subtract_subtract'],
     stages: {
       complement_10: ['observe', 'predict', 'construct'],
       carry_over: ['observe', 'predict', 'construct'],
       borrow: ['observe', 'predict', 'construct'],
+      carry_2d1: ['construct'],
+      borrow_2d1: ['construct'],
+      carry_2d2: ['construct'],
+      borrow_2d2: ['construct'],
     },
   },
   View,
