@@ -8,7 +8,8 @@ import type { AppData, CraftKind, LearningStage, ModeId, TaskCategory } from '..
 import { stepsOf } from '../core/engine/progression';
 import { isoWithOffset, jstDateKey } from '../core/time';
 import { HomeScreen, ModeScreen, RankingScreen, StartScreen } from './screens/HomeScreens';
-import { legacyTotalPoints, ranking, totalPoints } from '../core/score';
+import { legacyTotalPoints, ranking, totalPoints, countsInRound } from '../core/score';
+import { rankingTenths, splitTenths, totalTenths, type ModeLookup } from '../core/scoring';
 import { uid } from '../core/time';
 import { PlayScreen, type PlaySpec } from './screens/PlayScreen';
 import { CraftBookScreen } from './screens/CraftBookScreen';
@@ -86,11 +87,25 @@ function Loaded({ store }: { store: Store }) {
   });
   // v2.5: 点の付け方を変える前の点は基準点にまとめる（1回だけ保存。それまでの点・ランクを下げない）
   const baseline = data.profile.scoreBaseline ?? null;
+  // v2.15: くり返しで点を集めにくくする付け方に切り替える。切り替えたときの合計点を残す（それまでの点・ランクを下げない）
+  const rules = data.profile.scoreRules ?? null;
   useEffect(() => {
-    if (!store.data.profile.scoreBaseline) void store.saveProfile({ ...store.data.profile, scoreBaseline: { points: legacyTotalPoints(store.data), at: isoWithOffset() } });
-  }, [store, baseline]);
-  const pointsOf = (d: AppData) => (d.profile.scoreBaseline ? totalPoints(d, d.profile.scoreBaseline) : legacyTotalPoints(d));
-  const points = learning.scoreEnabled ? pointsOf(data) : 0;
+    let p = store.data.profile;
+    if (!p.scoreBaseline) p = { ...p, scoreBaseline: { points: legacyTotalPoints(store.data), at: isoWithOffset() } };
+    if (!p.scoreRules) p = { ...p, scoreRules: { version: 'v2.15', at: isoWithOffset(), points: totalPoints(store.data, p.scoreBaseline) } };
+    if (p !== store.data.profile) void store.saveProfile(p);
+  }, [store, baseline, rules]);
+  const modeLookup: ModeLookup = (id) => GameRegistry.all().find((p) => p.id === id);
+  /** 合計（10分の1点の単位） */
+  const tenthsOf = (d: AppData) => {
+    if (d.profile.scoreRules) return totalTenths(d, d.profile.scoreRules, modeLookup);
+    return (d.profile.scoreBaseline ? totalPoints(d, d.profile.scoreBaseline) : legacyTotalPoints(d)) * 10;
+  };
+  const pointsOf = (d: AppData) => splitTenths(tenthsOf(d)).points;
+  const total = learning.scoreEnabled ? splitTenths(tenthsOf(data)) : { points: 0, dots: 0 };
+  const points = total.points;
+  const rankingOf = (limit: number, roundLength: number) =>
+    rules ? rankingTenths(store.data.sessions, roundLength, limit, rules, baseline, modeLookup, countsInRound) : ranking(store.data.sessions, roundLength, limit, baseline);
   const onCraft = (value: number, parts: number[], mode: ModeId, kind?: CraftKind) => {
     store.addCraft({ value, parts, firstMadeAt: isoWithOffset(), modeId: mode, ...(kind && kind !== 'sum' ? { kind } : {}) });
   };
@@ -110,7 +125,7 @@ function Loaded({ store }: { store: Store }) {
         <HomeScreen
           s={settings}
           learning={learning}
-          score={learning.scoreEnabled ? { points } : null}
+          score={learning.scoreEnabled ? { points, dots: total.dots } : null}
           onMode={startMode}
           onCraft={() => setScreen({ name: 'craft' })}
           onRanking={() => setScreen({ name: 'ranking' })}
@@ -138,14 +153,16 @@ function Loaded({ store }: { store: Store }) {
           pickContext={pickContext}
           sessions={() => store.data.sessions}
           totalPoints={() => pointsOf(store.data)}
-          baseline={baseline}
+          rules={rules}
+          modes={modeLookup}
+          rankingOf={rankingOf}
           onNewRound={(spec) => play(newRoundSpec(spec))}
           onCraft={onCraft}
           onExit={() => setScreen(learning.freeChoice ? { name: 'mode', mode: screen.spec.mode } : { name: 'home' })}
           onTransfer={play}
         />
       )}
-      {screen.name === 'ranking' && <RankingScreen list={ranking(data.sessions, learning.roundLength, 10, baseline)} points={points} onBack={() => setScreen({ name: 'home' })} />}
+      {screen.name === 'ranking' && <RankingScreen list={rankingOf(10, learning.roundLength)} points={points} onBack={() => setScreen({ name: 'home' })} />}
       {screen.name === 'craft' && <CraftBookScreen entries={data.craftBook ?? []} s={settings} onBack={() => setScreen({ name: 'home' })} />}
       {screen.name === 'end' && (
         <EndScreen

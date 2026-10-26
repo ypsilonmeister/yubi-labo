@@ -255,6 +255,8 @@ export interface AppData {
     learning?: LearningSettings; // 実装拡張
     /** 実装拡張（v2.5）: 点の付け方を変えたときの基準点（それまでの点が下がらないように。score.ts） */
     scoreBaseline?: { points: number; at: string };
+    /** 実装拡張（v2.15）: くり返しで点を集めにくくする付け方に切り替えた記録（切り替えたときの合計点と時刻） */
+    scoreRules?: { version: 'v2.15'; at: string; points: number };
   };
   sessions: Session[];
   craftBook?: CraftEntry[];

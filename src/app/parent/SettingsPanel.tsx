@@ -32,7 +32,7 @@ const A11Y: Field<keyof AccessibilitySettings>[] = [
 ];
 
 const LEARN: Field<keyof LearningSettings>[] = [
-  { key: 'scoreEnabled', label: 'てんすう・ランク・植物', help: '保護者の判断で追加（v2.2）。点は減らず、速さでは変わりません。連続正解の倍率やコンボはありません。ランキングは本人の過去の記録だけです。', options: [[true, '表示する'], [false, '表示しない']] },
+  { key: 'scoreEnabled', label: 'てんすう・ランク・植物', help: '保護者の判断で追加（v2.2）。点は減らず、速さでは変わりません。連続正解の倍率やコンボはありません。ランキングは本人の過去の記録だけです。v2.15: 同じ日に同じ問題を解き直しても点は入りません（「れんしゅう」）。おまかせで済んだ段に自分で戻ったときは10分の1（小さな点10こで1てん）。今の挑戦・後日の確認・べつの せかいは満点のままです。', options: [[true, '表示する'], [false, '表示しない']] },
   { key: 'roundLength', label: '1ラウンドの問題数', options: [[5, '5'], [10, '10（初期）'], [15, '15']] },
   { key: 'freeChoice', label: '課題を自分で選ぶ画面', help: 'OFF（初期）: モードをタップするとすぐ始まり、課題と段階はおまかせで進みます（ヒントなし・間違いなしで2回続けてできたら次へ）。ON: v2.1 の選択画面を出します。', options: [[false, 'OFF（おまかせ）'], [true, 'ON']] },
   { key: 'choiceCount', label: '選択肢の数', options: [[2, '2'], [3, '3（初期）'], [4, '4']] },

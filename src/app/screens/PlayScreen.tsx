@@ -6,7 +6,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AccessibilitySettings, GameContext, LearningSettings, LearningStage, CraftKind, ModeId, Question, Session, TaskCategory, Trial } from '../../core/types';
 import { currentStep } from '../../core/engine/progression';
-import { allTrials, countsInRound, isFirstTry, rankOf, ranking, trialPoints, type ScoreBaseline } from '../../core/score';
+import { allTrials, countsInRound, isFirstTry, rankOf, trialPoints, type RoundRecord } from '../../core/score';
+import { scoreAll, type ModeLookup, type ScoreRules, type ScoredTrial } from '../../core/scoring';
 import { Plant } from '../Plant';
 import { RankingList } from './HomeScreens';
 import { GameRegistry } from '../../core/registry';
@@ -38,15 +39,18 @@ interface Props {
   sessions: () => Session[];
   /** これまでの合計点（v2.2） */
   totalPoints: () => number;
-  /** v2.5: 点の付け方を変えたときの基準点（ランキングで、それより前のラウンドは前の付け方で数える） */
-  baseline: ScoreBaseline | null;
+  /** v2.15: くり返しで点を集めにくくする付け方（null なら v2.5 の付け方のまま） */
+  rules: ScoreRules | null;
+  modes: ModeLookup;
+  /** 自分の記録のランキング（付け方は App が決める） */
+  rankingOf: (limit: number, roundLength: number) => RoundRecord[];
   onNewRound: (spec: PlaySpec) => void;
   onCraft: (value: number, parts: number[], mode: ModeId, kind?: CraftKind) => void;
   onExit: () => void;
   onTransfer: (spec: PlaySpec) => void;
 }
 
-export function PlayScreen({ spec, engine, settings, learning, pickContext, sessions, totalPoints, baseline, onNewRound, onCraft, onExit, onTransfer }: Props) {
+export function PlayScreen({ spec, engine, settings, learning, pickContext, sessions, totalPoints, rules, modes, rankingOf, onNewRound, onCraft, onExit, onTransfer }: Props) {
   const plugin = GameRegistry.get(spec.mode);
   const host = useRef<HTMLDivElement>(null);
   const handle = useRef<TrialHandle | null>(null);
@@ -165,9 +169,21 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
 
   // ラウンドの進み具合（このセッションの、このラウンドの試行）
   const roundTrials = spec.round ? (engine.session?.trials ?? []).filter((t) => t.roundId === spec.round!.id && countsInRound(t)) : [];
-  const roundPoints = roundTrials.reduce((a, t) => a + trialPoints(t), 0);
+  // v2.15: それまでの記録を見て点を決める（同じ日の同じ問題は れんしゅう、もう できた ところは 10分の1）
+  const scored = useMemo<Map<string, ScoredTrial> | null>(() => {
+    if (!rules) return null;
+    const all = sessions();
+    const cur = engine.session;
+    const known = new Set(all.flatMap((s) => s.trials.map((t) => t.trialId)));
+    const list = cur && cur.trials.some((t) => !known.has(t.trialId)) ? [...all.filter((s) => s.sessionId !== cur.sessionId), cur] : all;
+    return new Map(scoreAll(list, modes).map((x) => [x.trial.trialId, x] as const));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, rules]);
+  const tenthsOf = (t: Trial) => (scored ? (scored.get(t.trialId)?.tenths ?? 0) : trialPoints(t) * 10);
+  const roundPoints = Math.floor(roundTrials.reduce((a, t) => a + tenthsOf(t), 0) / 10);
   const roundOver = !!spec.round && roundTrials.length >= spec.round.length;
-  const lastPoints = done && spec.round ? trialPoints(done) : 0;
+  const lastScored = done && scored ? scored.get(done.trialId) ?? null : null;
+  const lastTenths = done && spec.round ? tenthsOf(done) : 0;
   // v2.7: 連続する課題（はんぶんチャレンジ）は、終わったあとの選び方を課題が決める。自動では進めない
   const conts = useMemo(() => (done ? continuationsOf(done, learningRef.current) : null), [done]);
   const chained = !!conts;
@@ -242,11 +258,11 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
         </nav>
       ) : (
         <nav className="after" aria-label="つぎに すること">
-          {spec.round && lastPoints > 0 && (
-            <span className={`points-chip${done && isFirstTry(done) ? ' first-try' : ''}`} aria-label={`${lastPoints} てん`}>
-              {done && isFirstTry(done) ? 'いっぱつ！ ' : ''}+{lastPoints} てん
-            </span>
+          {spec.round && lastScored?.practice && (
+            // v2.15: 同じ日の同じ問題は れんしゅう（0 という数字は出さない）
+            <span className="points-chip practice">れんしゅう できたね</span>
           )}
+          {spec.round && lastTenths > 0 && <PointsChip tenths={lastTenths} firstTry={!!done && isFirstTry(done) && !lastScored?.easier} />}
           {question && !roundOver && (
             <button
               type="button"
@@ -306,7 +322,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
           points={roundPoints}
           before={pointsAtStart.current}
           after={totalPoints()}
-          list={ranking(sessions(), spec.round.length, 5, baseline)}
+          list={rankingOf(5, spec.round.length)}
           onAgain={() => onNewRound({ mode: spec.mode, task: spec.task, stage: spec.stage, auto: spec.auto, round: { id: '', length: spec.round!.length } })}
           onExit={onExit}
         />
@@ -316,7 +332,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
 }
 
 /** ラウンドの結果: 点・植物（ランクが上がったら並べて見せる）・自分のランキング。自動では先へ進まない */
-function RoundResult(props: { roundId: string; points: number; before: number; after: number; list: ReturnType<typeof ranking>; onAgain: () => void; onExit: () => void }) {
+function RoundResult(props: { roundId: string; points: number; before: number; after: number; list: RoundRecord[]; onAgain: () => void; onExit: () => void }) {
   const r0 = rankOf(props.before);
   const r1 = rankOf(props.after);
   const up = r1.level > r0.level;
@@ -349,5 +365,23 @@ function RoundResult(props: { roundId: string; points: number; before: number; a
         </div>
       </div>
     </div>
+  );
+}
+
+/** v2.15 終わったあとの点。1てん以上は「+n てん」、それより少ない分は小さな点（10こで 1てん） */
+function PointsChip({ tenths, firstTry }: { tenths: number; firstTry: boolean }) {
+  const points = Math.floor(tenths / 10);
+  const dots = tenths % 10;
+  return (
+    <span className={`points-chip${firstTry ? ' first-try' : ''}`} aria-label={dots ? `${points} てん と ちいさな てん ${dots}こ` : `${points} てん`}>
+      {firstTry ? 'いっぱつ！ ' : ''}
+      {points > 0 ? `+${points} てん` : '+ちいさな てん'}
+      {dots > 0 && (
+        <span className="small-dots" aria-hidden>
+          {' '}
+          {'●'.repeat(dots)}
+        </span>
+      )}
+    </span>
   );
 }
