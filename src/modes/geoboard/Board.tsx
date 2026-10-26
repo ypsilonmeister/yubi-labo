@@ -46,9 +46,11 @@ export interface BoardProps {
   ghost?: Pt[] | null;
   /** 実演（L3）: 見本の点を太く示す */
   emphasis?: Pt[] | null;
+  /** v2.14 ひろさ: 点と点のあいだに うすい ます目を描く（ますを数えられるように） */
+  grid?: boolean;
 }
 
-export function Board({ path, closed, allowDiagonal, glow, s, onPoint, lockedCount = 0, rings = null, ghost = null, emphasis = null }: BoardProps) {
+export function Board({ path, closed, allowDiagonal, glow, s, onPoint, lockedCount = 0, rings = null, ghost = null, emphasis = null, grid = false }: BoardProps) {
   const n = path.length;
   const last = path[n - 1];
   const marks: { a: Pt; v: Pt; b: Pt }[] = [];
@@ -66,6 +68,13 @@ export function Board({ path, closed, allowDiagonal, glow, s, onPoint, lockedCou
   return (
     <svg viewBox={`0 0 ${BOARD_W} ${BOARD_W}`} className="field-svg geo-field" style={{ maxWidth: 520, margin: '0 auto', display: 'block' }}>
       <rect x={14} y={14} width={BOARD_W - 28} height={BOARD_W - 28} rx={26} fill="#f6f1e6" stroke={SLOT_STROKE} strokeWidth={3} />
+      {grid &&
+        Array.from({ length: BOARD }, (_, i) => (
+          <g key={`grid${i}`} stroke={SLOT_STROKE} strokeWidth={1.5} opacity={0.45} pointerEvents="none">
+            <line x1={px({ x: 0, y: i }).x} x2={px({ x: BOARD - 1, y: i }).x} y1={px({ x: 0, y: i }).y} y2={px({ x: 0, y: i }).y} />
+            <line x1={px({ x: i, y: 0 }).x} x2={px({ x: i, y: 0 }).x} y1={px({ x: i, y: 0 }).y} y2={px({ x: i, y: BOARD - 1 }).y} />
+          </g>
+        ))}
       {ghost && ghost.length >= 3 && <path d={`M${ghost.map((p) => `${px(p).x} ${px(p).y}`).join(' L')} Z`} fill={TILE.fill} fillOpacity={0.35} stroke={TILE.glow} strokeWidth={6} strokeDasharray="14 10" strokeLinejoin="round" />}
       {closed && <path d={`M${outline.join(' L')} Z`} fill={TILE.fill} fillOpacity={0.55} className={successClass(s, glow)} />}
       {n >= 2 && <path d={`M${outline.join(' L')}${closed ? ' Z' : ''}`} fill="none" stroke={TILE.glow} strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />}

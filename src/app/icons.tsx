@@ -258,12 +258,12 @@ export function TaskIcon({ task, s, size = 72 }: { task: TaskCategory; s: S; siz
       {task === 'doubling' && <LabIcon mode="mode_g_doubling" c={c} />}
       {task === 'period' && <LabIcon mode="mode_h_trains" c={c} />}
       {task === 'halving' && <HalvingIcon />}
-      {(task === 'shapes' || task === 'shape_right' || task === 'shape_rectangle') && <GeoboardIcon />}
-      {task === 'shape_triangle' && <GeoboardIcon triangle />}
+      {(task === 'shapes' || task === 'shape_right' || task === 'shape_rectangle' || task === 'shape_square' || task === 'shape_area') && <GeoboardIcon />}
+      {(task === 'shape_triangle' || task === 'shape_isosceles') && <GeoboardIcon triangle />}
       {(task === 'carry_2d1' || task === 'carry_2d2') && <TwoDigitIcon c={c} />}
       {(task === 'borrow_2d1' || task === 'borrow_2d2') && <TwoDigitIcon c={c} borrow />}
       {task === 'array_multiply' && <ArraysIcon kind="multiply" />}
-      {task === 'array_divide' && <ArraysIcon kind="divide" />}
+      {(task === 'array_divide' || task === 'array_divide_rem') && <ArraysIcon kind="divide" />}
       {task === 'array_split' && <ArraysIcon kind="split" />}
       {task === 'borrow' && (
         <>

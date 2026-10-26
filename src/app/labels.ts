@@ -24,6 +24,10 @@ export const TASK_LABEL: Record<TaskCategory, string> = {
   borrow_2d1: '2けたで 10を ひらく',
   carry_2d2: '2けた どうしで あふれて 10',
   borrow_2d2: '2けた どうしで 10を ひらく',
+  array_divide_rem: 'あまりが でる',
+  shape_square: 'せいほうけい',
+  shape_isosceles: 'にとうへん さんかく',
+  shape_area: 'ひろさ',
 };
 
 export function taskLabel(task: TaskCategory, mode: ModeId): string {
@@ -65,6 +69,10 @@ export const TASK_LABEL_PARENT: Record<TaskCategory, string> = {
   borrow_2d1: '2けた−1けたの繰り下がり',
   carry_2d2: '2けた＋2けたの繰り上がり',
   borrow_2d2: '2けた−2けたの繰り下がり',
+  array_divide_rem: 'あまりのある割り算',
+  shape_square: '正方形をつくる',
+  shape_isosceles: '二等辺三角形をつくる',
+  shape_area: '面積（ますの数）の形をつくる',
 };
 
 export const MODE_LABEL_PARENT: Record<ModeId, string> = {

@@ -2,7 +2,7 @@ import type { AccessibilitySettings, LearningSettings, LearningStage, ModeId, Op
 import { allBorrowPairs, allCarryPairs, isBorrowPair, isCarryPair } from '../math/tenframe';
 import { hasSameParityDistractor, makeDistractors, shuffle, type Rng } from '../math/choices';
 import { canHalve, halfOf, halvingDistractors, HALVING_MAX, pickStart, START_MAX, START_MIN, startValues } from '../math/halving';
-import { givenEdges, goalOperands, GOAL_OF_CODE, parseGoalOperands, type ShapeGoal } from '../math/shapes';
+import { areaTargets, goalEdges, goalOperands, GOAL_OF_CODE, parseGoalOperands, solveShape, type ShapeGoal } from '../math/shapes';
 import { arrayAnswer, arrayDistractors, arrayPairs, isValidArrayOperands, SPLIT_MAX, FACTOR_MAX, type ArrayTask } from '../math/arrays';
 import { isValidTwoDigit, twoDigitAnswer, twoDigitDistractors, twoDigitPairs, TWO_DIGIT_MAX, type TwoDigitTask } from '../math/twodigit';
 import { uid } from '../time';
@@ -30,22 +30,34 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   borrow_2d1: 'subtract',
   carry_2d2: 'add',
   borrow_2d2: 'subtract',
+  array_divide_rem: 'divide',
+  shape_square: 'draw',
+  shape_isosceles: 'draw',
+  shape_area: 'draw',
 };
 
 /** v2.11 2けたの繰り上がり・繰り下がり（§9.3 の拡張）の課題か */
 export const isTwoDigitTask = (t: TaskCategory): t is TwoDigitTask => t === 'carry_2d1' || t === 'borrow_2d1' || t === 'carry_2d2' || t === 'borrow_2d2';
 
 /** v2.10 タイルの かけわり（§9.10）の課題か */
-export const isArrayTask = (t: TaskCategory): t is ArrayTask => t === 'array_multiply' || t === 'array_divide' || t === 'array_split';
+export const isArrayTask = (t: TaskCategory): t is ArrayTask => t === 'array_multiply' || t === 'array_divide' || t === 'array_split' || t === 'array_divide_rem';
 
 /** v2.9 かたちづくり: 課題ごとの目標（§9.9）。決定点は「目標の形をつくる」で、選択肢は使わない */
-export const GOAL_OF_TASK: Partial<Record<TaskCategory, ShapeGoal>> = { shape_right: 'right', shape_triangle: 'triangle', shape_rectangle: 'rectangle' };
+export const GOAL_OF_TASK: Partial<Record<TaskCategory, ShapeGoal>> = {
+  shape_right: 'right',
+  shape_triangle: 'triangle',
+  shape_rectangle: 'rectangle',
+  // v2.14
+  shape_square: 'square',
+  shape_isosceles: 'isosceles',
+  shape_area: 'area',
+};
 export const isShapeGoalTask = (t: TaskCategory) => t in GOAL_OF_TASK;
 
 export function strategyFor(task: TaskCategory, mode: ModeId, settings: Readonly<AccessibilitySettings>): Strategy {
   if (task === 'carry_over' || task === 'carry_2d1' || task === 'carry_2d2') return 'make_ten';
   // v2.11: 2けたの一の位は C と同じ方略（設定の減加法／減減法）
-  if (task === 'borrow_2d1' || task === 'borrow_2d2') return settings.borrowStrategy;
+  if (task === 'borrow_2d1' || task === 'borrow_2d2') return mode === 'mode_d_exchange' ? 'count_up' : settings.borrowStrategy;
   if (task === 'borrow') return mode === 'mode_d_exchange' ? 'count_up' : settings.borrowStrategy;
   return 'none';
 }
@@ -79,12 +91,16 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'shape_right':
     case 'shape_triangle':
     case 'shape_rectangle':
+    case 'shape_square':
+    case 'shape_isosceles':
+    case 'shape_area':
       // v2.9: 目標の記号（operands の先頭）
       return operands[0];
     case 'array_multiply':
     case 'array_divide':
     case 'array_split':
-      // v2.10: かけざん・10と のこりは 行 × 列、わりざんは 列
+    case 'array_divide_rem':
+      // v2.10: かけざん・10と のこりは 行 × 列、わりざんは 列（v2.13 あまりのある わりざんも 列）
       return arrayAnswer(task, operands);
     case 'carry_2d1':
     case 'borrow_2d1':
@@ -127,10 +143,14 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
     case 'shape_right':
     case 'shape_triangle':
     case 'shape_rectangle':
+    case 'shape_square':
+    case 'shape_isosceles':
+    case 'shape_area':
       return a;
     case 'array_multiply':
     case 'array_divide':
     case 'array_split':
+    case 'array_divide_rem':
       return arrayAnswer(q.taskType, q.operands);
     case 'carry_2d1':
     case 'borrow_2d1':
@@ -197,11 +217,18 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
     case 'shape_right':
     case 'shape_triangle':
     case 'shape_rectangle':
-      // v2.9: 最初の1辺（90通り）
-      return givenEdges().map((e) => goalOperands(GOAL_OF_TASK[task]!, e));
+    case 'shape_square':
+    case 'shape_isosceles':
+    case 'shape_area': {
+      // v2.9: 最初の1辺（見本の解がある辺だけ）。v2.14 ひろさは 辺と ます n こぶん の組
+      const goal = GOAL_OF_TASK[task]!;
+      if (goal === 'area') return areaTargets().map((t) => goalOperands('area', t.edge, t.n));
+      return goalEdges(goal).map((e) => goalOperands(goal, e));
+    }
     case 'array_multiply':
     case 'array_divide':
     case 'array_split':
+    case 'array_divide_rem':
       return arrayPairs(task);
     case 'carry_2d1':
     case 'borrow_2d1':
@@ -241,6 +268,10 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   borrow_2d1: 6,
   carry_2d2: 6,
   borrow_2d2: 7,
+  array_divide_rem: 6,
+  shape_square: 3,
+  shape_isosceles: 4,
+  shape_area: 4,
 };
 
 export interface GenerateOptions {
@@ -424,6 +455,7 @@ export function validateQuestion(q: Question): string[] {
     const g = parseGoalOperands(q.operands);
     if (!g) errs.push('かたちづくり: 目標と最初の1辺（たて・よこ、長さ1〜3、盤の中）が正しくない');
     else if (GOAL_OF_CODE[q.operands[0]] !== GOAL_OF_TASK[q.taskType]) errs.push('かたちづくり: 目標が課題と合わない');
+    else if (!solveShape(g.goal, g.edge, g.n)) errs.push('かたちづくり: 最初の1辺から作れる見本の形がない');
     return errs;
   }
   if (isArrayTask(q.taskType) && !isValidArrayOperands(q.taskType, q.operands)) errs.push('かけわり: 行・列が範囲外か、割り切れない');
@@ -442,7 +474,8 @@ export function validateQuestion(q: Question): string[] {
 export function valueRange(task: TaskCategory): { min: number; max: number } {
   if (task === 'halving') return { min: 1, max: HALVING_MAX };
   // v2.9: 目標の記号と盤の座標（0〜4）
-  if (isShapeGoalTask(task)) return { min: 0, max: 4 };
+  // v2.14: ひろさの n は 16 まで
+  if (isShapeGoalTask(task)) return { min: 0, max: 16 };
   // v2.10: 行・列は 2〜19、答え（ぜんぶの数）は 19 × 9 まで
   if (isArrayTask(task)) return { min: 2, max: SPLIT_MAX * FACTOR_MAX };
   // v2.11: 2けたは 99 まで（100 は Phase 5）

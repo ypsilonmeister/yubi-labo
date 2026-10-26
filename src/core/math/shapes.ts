@@ -145,20 +145,47 @@ export const countWord = (n: number) => COUNT_WORD[n] ?? `${n}こ`;
 
 // ---------- K かたちづくり（v2.9・§9.9）: 目標と、最初の1辺 ----------
 
-/** 目標（課題ごとに1つ）。Question の operands の先頭に入れる記号 */
-export type ShapeGoal = 'right' | 'triangle' | 'rectangle';
-export const GOAL_CODE: Record<ShapeGoal, number> = { right: 1, triangle: 2, rectangle: 3 };
-export const GOAL_OF_CODE: Record<number, ShapeGoal> = { 1: 'right', 2: 'triangle', 3: 'rectangle' };
+/**
+ * 目標（課題ごとに1つ）。Question の operands の先頭に入れる記号。
+ * v2.14: square（せいほうけい）・isosceles（にとうへん さんかく）・area（ひろさ N の かたち）を足した。
+ */
+export type ShapeGoal = 'right' | 'triangle' | 'rectangle' | 'square' | 'isosceles' | 'area';
+export const GOAL_CODE: Record<ShapeGoal, number> = { right: 1, triangle: 2, rectangle: 3, square: 4, isosceles: 5, area: 6 };
+export const GOAL_OF_CODE: Record<number, ShapeGoal> = { 1: 'right', 2: 'triangle', 3: 'rectangle', 4: 'square', 5: 'isosceles', 6: 'area' };
 
-/** 目標に合う形か。right は「かどがぜんぶ まっすぐ」、rectangle は せいほうけい も 長方形の仲間として受け入れる */
-export function meetsGoal(goal: ShapeGoal, poly: Pt[]): boolean {
+/** 面積の2倍（整数。格子点の多角形の面積は 0.5 きざみ） */
+export function doubledArea(poly: Pt[]): number {
+  let s2 = 0;
+  for (let i = 0; i < poly.length; i++) s2 += cross(poly[i], poly[(i + 1) % poly.length]);
+  return Math.abs(s2);
+}
+
+/** 2つの辺の長さが等しい三角形か（長さは2乗で、整数のまま比べる） */
+export function isIsosceles(poly: Pt[]): boolean {
+  const c = corners(poly);
+  if (c.length !== 3) return false;
+  const [p, q, r] = c;
+  const a = len2(p, q);
+  const b = len2(q, r);
+  const d = len2(r, p);
+  return a === b || b === d || d === a;
+}
+
+/**
+ * 目標に合う形か。right は「かどがぜんぶ まっすぐ」、rectangle は せいほうけい も 長方形の仲間として受け入れる。
+ * area は n（ます n こぶん）と面積が等しい輪なら、形は問わない。
+ */
+export function meetsGoal(goal: ShapeGoal, poly: Pt[], n = 0): boolean {
   const k = classify(poly);
   if (goal === 'triangle') return k === 'triangle' || k === 'right_triangle';
+  if (goal === 'square') return k === 'square';
+  if (goal === 'isosceles') return isIsosceles(poly);
+  if (goal === 'area') return doubledArea(poly) === 2 * n;
   return k === 'rectangle' || k === 'square';
 }
 
 /** 三角形は斜めの線がないと作れない。その課題は、斜めを最初からONにする */
-export const needsDiagonal = (goal: ShapeGoal) => goal === 'triangle';
+export const needsDiagonal = (goal: ShapeGoal) => goal === 'triangle' || goal === 'isosceles';
 
 export type Edge = [Pt, Pt];
 
@@ -174,35 +201,80 @@ export function givenEdges(): Edge[] {
   return out;
 }
 
+const onBoard = (p: Pt) => p.x >= 0 && p.x < BOARD && p.y >= 0 && p.y < BOARD;
+
+/** 辺 ab に垂直に h だけ ふくらませた長方形（+ がだめなら −）。盤におさまらなければ null */
+function rectOn([a, b]: Edge, h: number): Pt[] | null {
+  const horizontal = a.y === b.y;
+  for (const d of [h, -h]) {
+    const c = horizontal ? { x: b.x, y: b.y + d } : { x: b.x + d, y: b.y };
+    const e = horizontal ? { x: a.x, y: a.y + d } : { x: a.x + d, y: a.y };
+    if (onBoard(c) && onBoard(e)) return [a, b, c, e];
+  }
+  return null;
+}
+
 /**
- * 見本の解（ヒント L3 の実演に使う）。最初の1辺の続きを、きまった手順で返す。
+ * 見本の解（ヒント L3 の実演・出題前の検証に使う）。最初の1辺の続きを、きまった手順で返す。解がなければ null。
  * - right / rectangle: 辺に垂直に 1 だけ（盤にはみ出すなら反対側へ）ふくらませた長方形
  * - triangle: 辺の左（上）はしの真上（または真下）の点を頂点とする三角形（ななめの線を1本つかう）
+ * - square: 辺と同じ長さだけ ふくらませた正方形
+ * - isosceles: 辺の長さが偶数なら、まんなかの真上（真下）を頂点に。奇数なら、辺の はしから同じ長さの たて（よこ）の辺をのばした直角二等辺三角形
+ * - area: 辺の長さ L で、ます n こぶん（n ÷ L の高さ）の長方形
  * 返す点の並びは、最初の2点が与えられた辺で、とじるまえの輪（さいしょの点にもどる点は含まない）。
  */
-export function solveShape(goal: ShapeGoal, edge: Edge): Pt[] {
+export function solveShape(goal: ShapeGoal, edge: Edge, n = 0): Pt[] | null {
   const [a, b] = edge;
   const horizontal = a.y === b.y;
+  const len = horizontal ? b.x - a.x : b.y - a.y;
   const off = (v: number) => (v + 1 < BOARD ? 1 : -1);
   if (goal === 'triangle') {
     return horizontal ? [a, b, { x: a.x, y: a.y + off(a.y) }] : [a, b, { x: a.x + off(a.x), y: a.y }];
   }
-  if (horizontal) {
-    const d = off(a.y);
-    return [a, b, { x: b.x, y: b.y + d }, { x: a.x, y: a.y + d }];
+  if (goal === 'square') return rectOn(edge, len);
+  if (goal === 'area') return n % len === 0 && n / len >= 1 && n / len < BOARD ? rectOn(edge, n / len) : null;
+  if (goal === 'isosceles') {
+    if (len % 2 === 0) {
+      for (const d of [1, -1]) {
+        const apex = horizontal ? { x: a.x + len / 2, y: a.y + d } : { x: a.x + d, y: a.y + len / 2 };
+        if (onBoard(apex)) return [a, b, apex];
+      }
+      return null;
+    }
+    for (const d of [len, -len]) {
+      // b の はしから、a→b と同じ長さの垂直な辺（輪は a → b → c → a）
+      const c = horizontal ? { x: b.x, y: b.y + d } : { x: b.x + d, y: b.y };
+      if (onBoard(c)) return [a, b, c];
+    }
+    return null;
   }
-  const d = off(a.x);
-  return [a, b, { x: b.x + d, y: b.y }, { x: a.x + d, y: a.y }];
+  return rectOn(edge, 1);
 }
 
-/** 出題の operands = [目標の記号, x0, y0, x1, y1] */
-export function goalOperands(goal: ShapeGoal, e: Edge): number[] {
-  return [GOAL_CODE[goal], e[0].x, e[0].y, e[1].x, e[1].y];
+/** 目標ごとの「最初の1辺」の候補（見本の解がある辺だけ） */
+export function goalEdges(goal: Exclude<ShapeGoal, 'area'>): Edge[] {
+  return givenEdges().filter((e) => solveShape(goal, e) !== null);
 }
 
-export function parseGoalOperands(ops: number[]): { goal: ShapeGoal; edge: Edge } | null {
+/** ひろさの課題の組（最初の1辺と、ます n こぶん）。n は 辺の長さ × 高さ（1〜4）で、盤におさまるもの */
+export function areaTargets(): { edge: Edge; n: number }[] {
+  const out: { edge: Edge; n: number }[] = [];
+  for (const e of givenEdges()) {
+    const len = e[0].y === e[1].y ? e[1].x - e[0].x : e[1].y - e[0].y;
+    for (let h = 1; h < BOARD; h++) if (rectOn(e, h)) out.push({ edge: e, n: len * h });
+  }
+  return out;
+}
+
+/** 出題の operands = [目標の記号, x0, y0, x1, y1]（ひろさは さいごに n） */
+export function goalOperands(goal: ShapeGoal, e: Edge, n?: number): number[] {
+  const base = [GOAL_CODE[goal], e[0].x, e[0].y, e[1].x, e[1].y];
+  return goal === 'area' ? [...base, n ?? 0] : base;
+}
+
+export function parseGoalOperands(ops: number[]): { goal: ShapeGoal; edge: Edge; n: number } | null {
   const goal = GOAL_OF_CODE[ops[0]];
-  if (!goal || ops.length !== 5) return null;
+  if (!goal || ops.length !== (goal === 'area' ? 6 : 5)) return null;
   const [, x0, y0, x1, y1] = ops;
   const inb = (v: number) => Number.isInteger(v) && v >= 0 && v < BOARD;
   if (![x0, y0, x1, y1].every(inb)) return null;
@@ -211,5 +283,7 @@ export function parseGoalOperands(ops: number[]): { goal: ShapeGoal; edge: Edge 
   const len = dx + dy;
   const axis = (dx === 0) !== (dy === 0);
   if (!axis || dx < 0 || dy < 0 || len < 1 || len > 3) return null;
-  return { goal, edge: [{ x: x0, y: y0 }, { x: x1, y: y1 }] };
+  const n = goal === 'area' ? ops[5] : 0;
+  if (goal === 'area' && !(Number.isInteger(n) && n >= 1 && n <= (BOARD - 1) * (BOARD - 1))) return null;
+  return { goal, edge: [{ x: x0, y: y0 }, { x: x1, y: y1 }], n };
 }

@@ -47,13 +47,21 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
     case 'shape_right':
     case 'shape_triangle':
     case 'shape_rectangle':
+    case 'shape_square':
+    case 'shape_isosceles':
       // v2.9: かたちづくりに式はない
       return [];
+    case 'shape_area':
+      // v2.14: ひろさは、試行が終わってから ます の数だけ
+      return revealed ? [`ひろさは ます ${q.operands[5]} こぶん`] : [];
     case 'array_multiply':
       // v2.10: operands は [行, 列]。式は「1行の数 × 行の数」（1つ分 × いくつ分）
       return [`${b} × ${a} = ${revealed ? a * b : '？'}`];
     case 'array_divide':
       return [`${a} ÷ ${b} = ${revealed ? a / b : '？'}`];
+    case 'array_divide_rem':
+      // v2.13: 答えは「1れつの数 あまり いくつ」
+      return [`${a} ÷ ${b} = ${revealed ? `${Math.floor(a / b)} あまり ${a % b}` : '？'}`];
     case 'carry_2d1':
     case 'carry_2d2': {
       // v2.11: 一の位で 10をつくり、十の位は 10のカードで数える。答えは試行が終わってから
@@ -71,6 +79,11 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
       const so = b % 10;
       const tensLeft = a - u - 10 - (b - so);
       const onesLeft = 10 - so + u;
+      if (q.strategy === 'count_up') {
+        // D（お店）: ねだんの十の位と一の位のぶんを10円で はらって、お釣りを もらう
+        const paid = b - so + 10;
+        return [`${paid} えん はらう`, `${b} と ${10 - so} で ${paid}（おつり ${10 - so}）`, `${tensLeft} と ${10 - so} と ${u} で ${a - b}`, `${a} − ${b} = ${a - b}`];
+      }
       const onesLines =
         q.strategy === 'subtract_subtract'
           ? [`${so} を ${u} と ${so - u} に わける`, `10 から ${so - u} を とって ${onesLeft}`]
