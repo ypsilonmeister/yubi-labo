@@ -27,6 +27,9 @@ export const ALL_TASKS: readonly TaskCategory[] = [
   'carry_2d2',
   'borrow_2d2',
   'array_divide_rem',
+  'shape_square',
+  'shape_isosceles',
+  'shape_area',
 ];
 
 export const ALL_MODES: readonly ModeId[] = [

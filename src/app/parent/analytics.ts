@@ -182,6 +182,9 @@ export function heatAxis(task: TaskCategory, synthesisMax: number): HeatAxis {
     case 'shape_right':
     case 'shape_triangle':
     case 'shape_rectangle':
+    case 'shape_square':
+    case 'shape_isosceles':
+    case 'shape_area':
       // じっけんラボ（自由探索のみ）は正誤の集計がない
       return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };
   }

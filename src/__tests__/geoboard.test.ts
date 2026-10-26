@@ -7,6 +7,7 @@ import { DEFAULT_LEARNING, DEFAULT_SETTINGS } from '../core/settings';
 import { GameRegistry } from '../core/registry';
 import { registerModes } from '../modes/index';
 import type { TaskCategory } from '../core/types';
+import { areaTargets, doubledArea, goalEdges, isIsosceles } from '../core/math/shapes';
 
 const P = (x: number, y: number): Pt => ({ x, y });
 
@@ -121,7 +122,7 @@ describe('v2.9 かたちづくり: 目標・最初の1辺・見本の解', () =>
   it('どの目標・どの1辺でも、見本の解は線の規則を守り、目標に合い、図鑑に残る', () => {
     for (const goal of GOALS)
       for (const e of givenEdges()) {
-        const sol = solveShape(goal, e);
+        const sol = solveShape(goal, e)!;
         expect(sol.slice(0, 2)).toEqual(e);
         const diag = needsDiagonal(goal);
         // 1点ずつ、ゴムをかけられる点だけでつなげる
@@ -138,7 +139,7 @@ describe('v2.9 かたちづくり: 目標・最初の1辺・見本の解', () =>
   it('三角形はたて・よこだけでは作れず、斜めが要る。見本は斜めの線を1本使う', () => {
     expect(needsDiagonal('triangle')).toBe(true);
     expect(needsDiagonal('rectangle')).toBe(false);
-    const sol = solveShape('triangle', givenEdges()[0]);
+    const sol = solveShape('triangle', givenEdges()[0])!;
     const axisOnly = sol.every((p, i) => p.x === sol[(i + 1) % sol.length].x || p.y === sol[(i + 1) % sol.length].y);
     expect(axisOnly).toBe(false);
   });
@@ -161,7 +162,7 @@ describe('v2.9 かたちづくり: 目標・最初の1辺・見本の解', () =>
   });
 
   it('operands の作り方と読み取りが往復し、範囲外・斜め・長すぎる辺は読み取れない', () => {
-    for (const goal of GOALS) for (const e of givenEdges()) expect(parseGoalOperands(goalOperands(goal, e))).toEqual({ goal, edge: e });
+    for (const goal of GOALS) for (const e of givenEdges()) expect(parseGoalOperands(goalOperands(goal, e))).toEqual({ goal, edge: e, n: 0 });
     expect(parseGoalOperands([1, 0, 0, 1, 1])).toBeNull(); // ななめ
     expect(parseGoalOperands([1, 0, 0, 4, 0])).toBeNull(); // 長さ4
     expect(parseGoalOperands([1, 0, 0, 5, 0])).toBeNull(); // 盤の外
@@ -193,8 +194,67 @@ describe('v2.9 かたちづくり: 出題とおまかせ進行', () => {
   it('おまかせ進行は 「まっすぐな かど → さんかく → ちょうほうけい」の順。J は決定点なし（自由探索のまま）', () => {
     registerModes();
     const k = GameRegistry.get('mode_k_shapemake');
-    expect(stepsOf(k).map((s) => `${s.task}/${s.stage}`)).toEqual(['shape_right/construct', 'shape_triangle/construct', 'shape_rectangle/construct']);
+    expect(stepsOf(k).map((s) => `${s.task}/${s.stage}`)).toEqual(['shape_right/construct', 'shape_triangle/construct', 'shape_rectangle/construct', 'shape_square/construct', 'shape_isosceles/construct', 'shape_area/construct']);
     expect(currentStep(k, []).task).toBe('shape_right');
     expect(stepsOf(GameRegistry.get('mode_j_geoboard'))).toEqual([]);
+  });
+});
+
+
+describe('v2.14 発展図形: せいほうけい・にとうへん さんかく・ひろさ', () => {
+  it('面積は格子点から整数（2倍）で決まる', () => {
+    expect(doubledArea([P(0, 0), P(3, 0), P(3, 2), P(0, 2)])).toBe(12);
+    expect(doubledArea([P(0, 0), P(3, 0), P(0, 2)])).toBe(6);
+    expect(doubledArea([P(1, 0), P(2, 1), P(1, 2), P(0, 1)])).toBe(4); // ななめの正方形は ます2こぶん
+    expect(doubledArea([P(0, 0), P(2, 0), P(2, 1), P(1, 1), P(1, 2), P(0, 2)])).toBe(6);
+  });
+
+  it('にとうへん さんかく と せいほうけい の判定', () => {
+    expect(isIsosceles([P(0, 0), P(2, 0), P(1, 2)])).toBe(true);
+    expect(isIsosceles([P(0, 0), P(3, 0), P(3, 3)])).toBe(true); // 直角二等辺
+    expect(isIsosceles([P(0, 0), P(3, 0), P(0, 2)])).toBe(false);
+    expect(meetsGoal('square', [P(1, 0), P(2, 1), P(1, 2), P(0, 1)])).toBe(true);
+    expect(meetsGoal('square', [P(0, 0), P(3, 0), P(3, 2), P(0, 2)])).toBe(false);
+    expect(meetsGoal('area', [P(0, 0), P(3, 0), P(0, 2)], 3)).toBe(true); // 三角形でも ひろさが同じなら よい
+    expect(meetsGoal('area', [P(0, 0), P(3, 0), P(0, 2)], 4)).toBe(false);
+  });
+
+  it('どの出題でも、見本の解が線の規則を守り、目標に合い、盤の中におさまる', () => {
+    const check = (goal: ShapeGoal, sol: Pt[], n = 0) => {
+      const diag = needsDiagonal(goal);
+      for (let i = 1; i < sol.length; i++) expect(canExtend(sol.slice(0, i), sol[i], diag)).toBe(true);
+      expect(canExtend(sol, sol[0], diag)).toBe(true);
+      expect(meetsGoal(goal, sol, n)).toBe(true);
+      for (const p of sol) expect(p.x >= 0 && p.x < BOARD && p.y >= 0 && p.y < BOARD).toBe(true);
+    };
+    for (const goal of ['square', 'isosceles'] as const) {
+      const es = goalEdges(goal);
+      expect(es.length).toBeGreaterThan(40);
+      for (const e of es) check(goal, solveShape(goal, e)!);
+    }
+    const ts = areaTargets();
+    expect(ts.length).toBeGreaterThan(100);
+    for (const t of ts) {
+      expect(t.n).toBeGreaterThanOrEqual(1);
+      expect(t.n).toBeLessThanOrEqual(12);
+      check('area', solveShape('area', t.edge, t.n)!, t.n);
+    }
+  });
+
+  it('解のない辺は出題しない（長さ3の辺が盤のまんなかにあると、せいほうけいは作れない）', () => {
+    const mid = [P(0, 2), P(3, 2)] as [Pt, Pt];
+    expect(solveShape('square', mid)).toBeNull();
+    expect(goalEdges('square').some((e) => e[0].y === 2 && e[1].x - e[0].x === 3)).toBe(false);
+    expect(parseGoalOperands(goalOperands('area', mid, 6))).toEqual({ goal: 'area', edge: mid, n: 6 });
+    expect(parseGoalOperands([6, 0, 2, 3, 2])).toBeNull(); // ひろさは n が要る
+  });
+
+  it('出題前の検証を通る（3課題）', () => {
+    for (const task of ['shape_square', 'shape_isosceles', 'shape_area'] as const)
+      for (let i = 0; i < 40; i++) {
+        const q = generateQuestion({ task, mode: 'mode_k_shapemake', stage: 'construct', settings: DEFAULT_SETTINGS, learning: DEFAULT_LEARNING, pick: { recentIds: [], priorDayIds: new Set() } });
+        expect(validateQuestion(q)).toEqual([]);
+        expect(q.distractors).toEqual([]);
+      }
   });
 });

@@ -10,16 +10,65 @@ import { ModeLayout } from '../kit/ui';
 import { ShapeGlyph } from './ShapeGlyph';
 import { Board } from './Board';
 import { ExploreTask } from './GeoboardMode';
-import { canExtend, classify, countWord, discoveryOf, meetsGoal, needsDiagonal, parseGoalOperands, rightCorners, SHAPE_CODE, SHAPE_NAME, solveShape, type Pt, type ShapeClass, type ShapeGoal } from '../../core/math/shapes';
+import { canExtend, classify, countWord, discoveryOf, doubledArea, isIsosceles, meetsGoal, needsDiagonal, parseGoalOperands, rightCorners, SHAPE_CODE, SHAPE_NAME, solveShape, type Pt, type ShapeClass, type ShapeGoal } from '../../core/math/shapes';
+import { TILE, OUTLINE } from '../../core/colors';
 
 const GOAL_TEXT: Record<ShapeGoal, string> = {
   right: 'まっすぐな かどだけの かたちを つくろう',
   triangle: 'さんかくを つくろう',
   rectangle: 'ちょうほうけいを つくろう',
+  // v2.14
+  square: 'せいほうけいを つくろう',
+  isosceles: 'にとうへん さんかく（2つの へんが おなじ ながさ）を つくろう',
+  area: 'めあての ますと おなじ ひろさの かたちを つくろう',
 };
 
 /** ヒント L1 で出す見本の絵（形の記号） */
-const GOAL_GLYPH: Record<ShapeGoal, number> = { right: SHAPE_CODE.rectangle, triangle: SHAPE_CODE.triangle, rectangle: SHAPE_CODE.rectangle };
+const GOAL_GLYPH: Record<ShapeGoal, number> = {
+  right: SHAPE_CODE.rectangle,
+  triangle: SHAPE_CODE.triangle,
+  rectangle: SHAPE_CODE.rectangle,
+  square: SHAPE_CODE.square,
+  isosceles: SHAPE_CODE.triangle,
+  area: SHAPE_CODE.rectangle,
+};
+
+const GOAL_LABEL: Record<ShapeGoal, string> = {
+  right: 'まっすぐな かどだけ',
+  triangle: 'さんかく',
+  rectangle: 'ちょうほうけい',
+  square: 'せいほうけい',
+  isosceles: 'にとうへん さんかく',
+  area: 'ひろさ',
+};
+
+/** v2.14 ひろさ: ます（と はんぶん）を ならべた絵。doubled は面積の2倍 */
+function AreaBar({ doubled, label }: { doubled: number; label: string }) {
+  const full = Math.floor(doubled / 2);
+  const half = doubled % 2 === 1;
+  const per = 8;
+  const c = 18;
+  const count = full + (half ? 1 : 0);
+  const cols = Math.min(per, Math.max(1, count));
+  const rows = Math.max(1, Math.ceil(count / per));
+  return (
+    <span className="lab-row" style={{ gap: 6 }}>
+      <span>{label}</span>
+      <svg width={cols * (c + 3) + 4} height={rows * (c + 3) + 4} viewBox={`-2 -2 ${cols * (c + 3) + 4} ${rows * (c + 3) + 4}`} aria-hidden>
+        {Array.from({ length: count }, (_, i) => {
+          const x = (i % per) * (c + 3);
+          const y = Math.floor(i / per) * (c + 3);
+          const isHalf = half && i === count - 1;
+          return isHalf ? (
+            <path key={i} d={`M${x} ${y + c} L${x + c} ${y + c} L${x} ${y} Z`} fill={TILE.fill} stroke={OUTLINE} strokeWidth={1.2} />
+          ) : (
+            <rect key={i} x={x} y={y} width={c} height={c} rx={2} fill={TILE.fill} stroke={OUTLINE} strokeWidth={1.2} />
+          );
+        })}
+      </svg>
+    </span>
+  );
+}
 
 const same = (a: Pt, b: Pt) => a.x === b.x && a.y === b.y;
 
@@ -29,10 +78,11 @@ interface Snapshot {
   wrong: ShapeClass | null;
 }
 
-function MakeTask({ core, goal, edge }: { core: TrialCore; goal: ShapeGoal; edge: [Pt, Pt] }) {
+function MakeTask({ core, goal, edge, areaN }: { core: TrialCore; goal: ShapeGoal; edge: [Pt, Pt]; areaN: number }) {
   const forced = needsDiagonal(goal);
   const given = useMemo<Pt[]>(() => [edge[0], edge[1]], [edge]);
-  const sol = useMemo(() => solveShape(goal, edge), [goal, edge]);
+  // 見本の解（出題前の検証で、解がある問題だけが出る）
+  const sol = useMemo(() => solveShape(goal, edge, areaN) ?? given, [goal, edge, areaN, given]);
   const [path, setPath] = useState<Pt[]>(given);
   const [closed, setClosed] = useState(false);
   const [wrong, setWrong] = useState<ShapeClass | null>(null);
@@ -45,7 +95,7 @@ function MakeTask({ core, goal, edge }: { core: TrialCore; goal: ShapeGoal; edge
 
   const decide = (loop: Pt[]) => {
     const kind = classify(loop);
-    const correct = meetsGoal(goal, loop);
+    const correct = meetsGoal(goal, loop, areaN);
     core.ctx.emit({ type: 'attempt', payload: { closed: true, shape: SHAPE_CODE[kind] } });
     core.ctx.emit({ type: 'decision_made', payload: { shape: SHAPE_CODE[kind], correct } });
     setClosed(true);
@@ -123,9 +173,17 @@ function MakeTask({ core, goal, edge }: { core: TrialCore; goal: ShapeGoal; edge
   const prompt = note
     ? note
     : ok
-      ? `${SHAPE_NAME[kind!]} が できた！${rightN > 0 ? `　まっすぐな かどが ${countWord(rightN)}` : ''}`
+      ? goal === 'area'
+        ? `ひろさ ぴったり！ ${SHAPE_NAME[kind!]} が できた`
+        : goal === 'isosceles'
+          ? 'にとうへん さんかく が できた！ 2つの へんが おなじ ながさ'
+          : `${SHAPE_NAME[kind!]} が できた！${rightN > 0 ? `　まっすぐな かどが ${countWord(rightN)}` : ''}`
       : wrong
-        ? `${SHAPE_NAME[wrong]} が できたよ。もどすか、ほかの かたちを つくって みよう`
+        ? goal === 'area'
+          ? 'できた ひろさと、めあての ひろさを くらべて みよう。もどすか、ほかの かたちを つくって みよう'
+          : goal === 'isosceles' && (wrong === 'triangle' || wrong === 'right_triangle')
+            ? `${SHAPE_NAME[wrong]} が できたよ。へんの ながさを くらべて みよう。もどすか、ほかの かたちを つくって みよう`
+            : `${SHAPE_NAME[wrong]} が できたよ。もどすか、ほかの かたちを つくって みよう`
         : n === given.length
           ? `${GOAL_TEXT[goal]}。さいしょの せんは かかっているよ`
           : GOAL_TEXT[goal];
@@ -142,27 +200,37 @@ function MakeTask({ core, goal, edge }: { core: TrialCore; goal: ShapeGoal; edge
           s={core.settings}
           onPoint={onPoint}
           lockedCount={given.length}
+          grid={goal === 'area'}
           rings={rings}
           ghost={core.demo === 'place' ? sol : null}
           emphasis={core.demo === 'pick' ? sol : null}
         />
       }
       aside={
-        closed || core.hintLevel >= 1 ? (
-          <div className="lab-row" aria-live="polite">
-            {closed && kind ? (
-              <>
-                {kind !== 'polygon' && <ShapeGlyph code={SHAPE_CODE[kind]} size={56} />}
-                <strong>{SHAPE_NAME[kind]}</strong>
-              </>
-            ) : (
-              <>
-                <ShapeGlyph code={GOAL_GLYPH[goal]} size={56} />
-                <strong>{goal === 'triangle' ? 'さんかく' : goal === 'rectangle' ? 'ちょうほうけい' : 'まっすぐな かどだけ'}</strong>
-              </>
-            )}
-          </div>
-        ) : null
+        <>
+          {/* v2.14 ひろさ: めあての ひろさ（ます）は いつも見せる。とじたら、できた ひろさも ならべて くらべる */}
+          {goal === 'area' && (
+            <div className="lab-row" aria-live="polite">
+              <AreaBar doubled={2 * areaN} label={core.settings.numberLabels ? `めあて ${areaN}` : 'めあて'} />
+              {closed && <AreaBar doubled={doubledArea(path)} label={core.settings.numberLabels ? `できた ${doubledArea(path) / 2}` : 'できた'} />}
+            </div>
+          )}
+          {goal !== 'area' && (closed || core.hintLevel >= 1) ? (
+            <div className="lab-row" aria-live="polite">
+              {closed && kind ? (
+                <>
+                  {kind !== 'polygon' && <ShapeGlyph code={SHAPE_CODE[kind]} size={56} />}
+                  <strong>{goal === 'isosceles' && isIsosceles(path) ? 'にとうへん さんかく' : SHAPE_NAME[kind]}</strong>
+                </>
+              ) : (
+                <>
+                  <ShapeGlyph code={GOAL_GLYPH[goal]} size={56} />
+                  <strong>{GOAL_LABEL[goal]}</strong>
+                </>
+              )}
+            </div>
+          ) : null}
+        </>
       }
       tray={
         <div className="lab-tray">
@@ -190,7 +258,7 @@ function Task({ bridge }: { bridge: ModeBridge }) {
   const parsed = core.q.learningStage === 'explore' ? null : parseGoalOperands(core.q.operands);
   // 自由探索（ホームで「じゆうに あそぶ」を選んだとき）は J ジオボードと同じ盤
   if (!parsed) return <ExploreTask core={core} />;
-  return <MakeTask core={core} goal={parsed.goal} edge={parsed.edge} />;
+  return <MakeTask core={core} goal={parsed.goal} edge={parsed.edge} areaN={parsed.n} />;
 }
 
 function View({ bridge }: { bridge: ModeBridge }) {
@@ -204,9 +272,10 @@ export const ShapeMakeMode = createReactPlugin(
     id: 'mode_k_shapemake',
     title: 'かたちづくり',
     description: 'ジオボードで、目標の形（まっすぐな かどだけ・さんかく・ちょうほうけい）をつくる。さいしょの1辺はかかっている。違う形でも、形はそのまま残り、もどして つくりなおせる。',
-    supportedTasks: ['shape_right', 'shape_triangle', 'shape_rectangle'],
+    // v2.14: せいほうけい・にとうへん さんかく・ひろさ は、今の課題のあと
+    supportedTasks: ['shape_right', 'shape_triangle', 'shape_rectangle', 'shape_square', 'shape_isosceles', 'shape_area'],
     supportedStrategies: ['none'],
-    stages: { shape_right: ['construct'], shape_triangle: ['construct'], shape_rectangle: ['construct'] },
+    stages: { shape_right: ['construct'], shape_triangle: ['construct'], shape_rectangle: ['construct'], shape_square: ['construct'], shape_isosceles: ['construct'], shape_area: ['construct'] },
     group: 'core',
   },
   View,

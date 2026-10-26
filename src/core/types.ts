@@ -31,7 +31,11 @@ export type TaskCategory =
   | 'carry_2d2'
   | 'borrow_2d2'
   // 実装拡張（v2.13・§9.10 あまりのある わりざん）
-  | 'array_divide_rem';
+  | 'array_divide_rem'
+  // 実装拡張（v2.14・§9.9 発展図形）
+  | 'shape_square'
+  | 'shape_isosceles'
+  | 'shape_area';
 
 export type ModeId =
   | 'mode_a_parity'

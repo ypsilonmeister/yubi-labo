@@ -47,8 +47,13 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
     case 'shape_right':
     case 'shape_triangle':
     case 'shape_rectangle':
+    case 'shape_square':
+    case 'shape_isosceles':
       // v2.9: かたちづくりに式はない
       return [];
+    case 'shape_area':
+      // v2.14: ひろさは、試行が終わってから ます の数だけ
+      return revealed ? [`ひろさは ます ${q.operands[5]} こぶん`] : [];
     case 'array_multiply':
       // v2.10: operands は [行, 列]。式は「1行の数 × 行の数」（1つ分 × いくつ分）
       return [`${b} × ${a} = ${revealed ? a * b : '？'}`];
