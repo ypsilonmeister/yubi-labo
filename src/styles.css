@@ -1534,6 +1534,27 @@ button:disabled {
   color: #8a5a00;
 }
 
+/* v2.15 れんしゅう（同じ日の同じ問題。数字は出さない）と、10分の1の小さな点 */
+.points-chip.practice {
+  background: #f3efe4;
+  border-color: #b9ab8f;
+  color: #6b5f4c;
+}
+
+.small-dots {
+  font-size: 0.7em;
+  letter-spacing: 1px;
+}
+
+.plant-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 14px;
+  color: #6b5f4c;
+}
+
 /* v2.7 はんぶんチャレンジ（§22） */
 .halving-choice {
   display: flex;

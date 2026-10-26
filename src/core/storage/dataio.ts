@@ -26,6 +26,7 @@ export function withDefaults(profile: Partial<AppData['profile']> | undefined): 
     settings: { ...DEFAULT_SETTINGS, ...(profile?.settings ?? {}) } as AccessibilitySettings,
     learning: { ...DEFAULT_LEARNING, ...(profile?.learning ?? {}) } as LearningSettings,
     ...(validBaseline(profile?.scoreBaseline) ? { scoreBaseline: profile!.scoreBaseline } : {}),
+    ...(validBaseline(profile?.scoreRules) && profile!.scoreRules!.version === 'v2.15' ? { scoreRules: profile!.scoreRules } : {}),
   };
 }
 

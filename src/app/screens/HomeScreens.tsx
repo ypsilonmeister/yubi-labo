@@ -21,10 +21,12 @@ export function StartScreen({ onStart }: { onStart: () => void }) {
 
 export interface ScoreView {
   points: number;
+  /** v2.15: つぎの 1てんまでの小さな点（0〜9） */
+  dots?: number;
 }
 
 /** 植物とランク（v2.2・保護者判断で表示） */
-export function PlantCard({ points, onRanking }: { points: number; onRanking?: () => void }) {
+export function PlantCard({ points, dots = 0, onRanking }: { points: number; dots?: number; onRanking?: () => void }) {
   const rank = rankOf(points);
   const next = nextRank(points);
   return (
@@ -37,6 +39,13 @@ export function PlantCard({ points, onRanking }: { points: number; onRanking?: (
         <div className="plant-points">
           <b>{points}</b> てん
         </div>
+        {dots > 0 && (
+          // v2.15: 10分の1の点（小さな点）が 10こ たまると 1てん
+          <div className="plant-dots" aria-label={`つぎの 1てんまで ちいさな てん ${dots}こ`}>
+            <span>つぎの 1てんまで</span>
+            <span aria-hidden>{'●'.repeat(dots) + '○'.repeat(10 - dots)}</span>
+          </div>
+        )}
         {next && (
           <div className="plant-next">
             <span>つぎは</span>
@@ -67,7 +76,7 @@ export function HomeScreen(props: {
 }) {
   return (
     <div className="screen">
-      {props.score && <PlantCard points={props.score.points} onRanking={props.onRanking} />}
+      {props.score && <PlantCard points={props.score.points} dots={props.score.dots} onRanking={props.onRanking} />}
       <div className="tile-grid home-grid">
         {GameRegistry.all()
           .filter((p) => p.group !== 'lab')
