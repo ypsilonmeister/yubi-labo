@@ -30,13 +30,14 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   borrow_2d1: 'subtract',
   carry_2d2: 'add',
   borrow_2d2: 'subtract',
+  array_divide_rem: 'divide',
 };
 
 /** v2.11 2けたの繰り上がり・繰り下がり（§9.3 の拡張）の課題か */
 export const isTwoDigitTask = (t: TaskCategory): t is TwoDigitTask => t === 'carry_2d1' || t === 'borrow_2d1' || t === 'carry_2d2' || t === 'borrow_2d2';
 
 /** v2.10 タイルの かけわり（§9.10）の課題か */
-export const isArrayTask = (t: TaskCategory): t is ArrayTask => t === 'array_multiply' || t === 'array_divide' || t === 'array_split';
+export const isArrayTask = (t: TaskCategory): t is ArrayTask => t === 'array_multiply' || t === 'array_divide' || t === 'array_split' || t === 'array_divide_rem';
 
 /** v2.9 かたちづくり: 課題ごとの目標（§9.9）。決定点は「目標の形をつくる」で、選択肢は使わない */
 export const GOAL_OF_TASK: Partial<Record<TaskCategory, ShapeGoal>> = { shape_right: 'right', shape_triangle: 'triangle', shape_rectangle: 'rectangle' };
@@ -84,7 +85,8 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'array_multiply':
     case 'array_divide':
     case 'array_split':
-      // v2.10: かけざん・10と のこりは 行 × 列、わりざんは 列
+    case 'array_divide_rem':
+      // v2.10: かけざん・10と のこりは 行 × 列、わりざんは 列（v2.13 あまりのある わりざんも 列）
       return arrayAnswer(task, operands);
     case 'carry_2d1':
     case 'borrow_2d1':
@@ -131,6 +133,7 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
     case 'array_multiply':
     case 'array_divide':
     case 'array_split':
+    case 'array_divide_rem':
       return arrayAnswer(q.taskType, q.operands);
     case 'carry_2d1':
     case 'borrow_2d1':
@@ -202,6 +205,7 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
     case 'array_multiply':
     case 'array_divide':
     case 'array_split':
+    case 'array_divide_rem':
       return arrayPairs(task);
     case 'carry_2d1':
     case 'borrow_2d1':
@@ -241,6 +245,7 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   borrow_2d1: 6,
   carry_2d2: 6,
   borrow_2d2: 7,
+  array_divide_rem: 6,
 };
 
 export interface GenerateOptions {

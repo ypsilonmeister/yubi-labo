@@ -6,6 +6,7 @@ import { currentStep, stepsOf } from '../core/engine/progression';
 import { DEFAULT_LEARNING, DEFAULT_SETTINGS } from '../core/settings';
 import { GameRegistry } from '../core/registry';
 import { registerModes } from '../modes/index';
+import { remainderDistractors, remainderOf, remainderPairs } from '../core/math/arrays';
 
 const TASKS: ArrayTask[] = ['array_multiply', 'array_divide', 'array_split'];
 
@@ -111,8 +112,60 @@ describe('v2.10 タイルの かけわり: 出題とおまかせ進行', () => {
   it('おまかせ進行は かけざん → わりざん → 10と のこり の順。E タイル・リアクターは自由探索のまま', () => {
     registerModes();
     const l = GameRegistry.get('mode_l_arrays');
-    expect(stepsOf(l).map((s) => s.task)).toEqual(['array_multiply', 'array_divide', 'array_split']);
+    expect(stepsOf(l).map((s) => s.task)).toEqual(['array_multiply', 'array_divide', 'array_split', 'array_divide_rem']);
     expect(currentStep(l, []).task).toBe('array_multiply');
     expect(stepsOf(GameRegistry.get('mode_e_tiles'))).toEqual([]);
+  });
+});
+
+
+describe('v2.13 あまりのある わりざん', () => {
+  it('組は 288 通り（行 2〜9 × 列 2〜9 × あまり 1〜行−1）。あまりは いつも行より少なく、0 ではない', () => {
+    const ps = remainderPairs();
+    expect(ps).toHaveLength(288);
+    expect(new Set(ps.map((p) => p.join(','))).size).toBe(288);
+    for (const p of ps) {
+      const [n, r] = p;
+      const c = arrayAnswer('array_divide_rem', p);
+      const d = remainderOf(p);
+      expect(isValidArrayOperands('array_divide_rem', p)).toBe(true);
+      expect(r * c + d).toBe(n);
+      expect(d >= 1 && d < r).toBe(true);
+      expect(c >= 2 && c <= 9).toBe(true);
+      expect(arrayShape('array_divide_rem', p)).toEqual({ rows: r, cols: c });
+    }
+    expect(isValidArrayOperands('array_divide_rem', [12, 3])).toBe(false); // わりきれる
+    expect(isValidArrayOperands('array_divide_rem', [5, 3])).toBe(false); // 1れつ 2 未満
+  });
+
+  it('1れつの数の誤答候補: あまりを入れて ならべようとした（+1）が必ず入る', () => {
+    expect(arrayDistractors('array_divide_rem', [14, 3], 1)).toEqual([5]);
+    for (const p of remainderPairs())
+      for (const count of [1, 2, 3]) {
+        const ds = arrayDistractors('array_divide_rem', p, count, () => 0.6);
+        expect(ds).toHaveLength(count);
+        expect(ds).not.toContain(arrayAnswer('array_divide_rem', p));
+        expect(new Set(ds).size).toBe(count);
+      }
+  });
+
+  it('あまりの誤答候補: 正答・重複・負の数が入らず、こ数どおり', () => {
+    for (const p of remainderPairs())
+      for (const count of [1, 2, 3]) {
+        const ds = remainderDistractors(p, count, () => 0.2);
+        expect(ds).toHaveLength(count);
+        expect(ds).not.toContain(remainderOf(p));
+        expect(new Set(ds).size).toBe(count);
+        for (const d of ds) expect(d).toBeGreaterThanOrEqual(0);
+      }
+  });
+
+  it('出題前の検証を通る', () => {
+    for (const choiceCount of [2, 3, 4] as const)
+      for (let i = 0; i < 40; i++) {
+        const q = generateQuestion({ task: 'array_divide_rem', mode: 'mode_l_arrays', stage: 'construct', settings: DEFAULT_SETTINGS, learning: { ...DEFAULT_LEARNING, choiceCount }, pick: { recentIds: [], priorDayIds: new Set() } });
+        expect(validateQuestion(q)).toEqual([]);
+        expect(q.distractors.length + 1).toBe(choiceCount);
+      }
   });
 });

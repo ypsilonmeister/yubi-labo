@@ -3,6 +3,7 @@
 //   いくつ ある（array_multiply）: 行 × 列 にならんだタイルが、ぜんぶで いくつかを選ぶ。
 //   わけて ならべる（array_divide）: ぜんぶの タイルを r れつに ならべると、1れつ なんこ かを選ぶ。選ぶと席にならぶ。
 //   10と のこり（array_split）: 10の列と のこりの列に分けた 2けた×1けた の配列が、ぜんぶで いくつかを選ぶ。
+//   あまりが でる（array_divide_rem、v2.13）: わけて ならべる の続き。1れつの数を選んだあと、あまりの数を選ぶ。
 // 違う数を選んでも、選んだ数を同じ れつ にならべた形を見せるだけ（足りない席・のこった タイル）。赤・×・音・ゆれは使わない。
 // 「れつ」は E と同じく、よこの ならび（行）のこと。数字は数字のふだ（numberLabels）に従う。
 
@@ -13,7 +14,8 @@ import { ChoiceTray, type ChoiceItem } from '../kit/ChoiceTray';
 import { ModeLayout } from '../kit/ui';
 import { PLACE_BG, PLACE_STROKE, SLOT_STROKE, SLOT_STROKE_STRONG, TILE } from '../../core/colors';
 import { choicesOf } from '../../core/engine/questions';
-import { arrayAnswer, arrayShape, splitParts, type ArrayTask } from '../../core/math/arrays';
+import { arrayAnswer, arrayShape, remainderDistractors, remainderOf, splitParts } from '../../core/math/arrays';
+import { shuffle } from '../../core/math/choices';
 import { arrange } from '../../core/math/tiles';
 import { NumberChoice as ChoiceNode } from '../shared/NumberChoice';
 import { geometry, lerpPos, targets, TILE_AREA, TileField, type Pos } from '../shared/TileField';
@@ -28,7 +30,7 @@ function ColumnsFrame({ n, rows, k, strong }: { n: number; rows: number; k: numb
 
 // ---------- いくつ ある・10と のこり ----------
 
-function CountTask({ core, task }: { core: TrialCore; task: Exclude<ArrayTask, 'array_divide'> }) {
+function CountTask({ core, task }: { core: TrialCore; task: 'array_multiply' | 'array_split' }) {
   const { q, settings: s } = core;
   const { rows, cols } = arrayShape(task, q.operands);
   const n = rows * cols;
@@ -305,12 +307,187 @@ function DivideTask({ core }: { core: TrialCore }) {
   );
 }
 
+// ---------- あまりが でる（v2.13） ----------
+
+/** あまりの タイルを置く場所（左がわの まんなかに 1れつ） */
+const REM_CELL = 44;
+function remPositions(d: number): Pos[] {
+  const x0 = PILE.x + (PILE.w - d * REM_CELL) / 2;
+  const y = TILE_AREA.y + TILE_AREA.h / 2 - REM_CELL / 2;
+  return Array.from({ length: d }, (_, j) => ({ x: x0 + j * REM_CELL, y, size: REM_CELL - 4, opacity: 1 }));
+}
+
+/** 正しい1れつの数で席に ならべ、のこりを「あまり」の場所へ */
+function layoutRem(n: number, r: number, c: number): Pos[] {
+  const seats = seatPositions(r, c);
+  const rem = remPositions(n - r * c);
+  return pilePositions(n).map((p, i) => seats[i] ?? rem[i - r * c] ?? p);
+}
+
+/**
+ * あまりのある わりざん（array_divide_rem）。決定点は2つ:
+ * D1 1れつの数（多いと あいた 席、少ないと のこりで もう1こずつ ならべられる）。正しいと、のこりは「あまり」の場所へ。
+ * D2 あまりは いくつ（のこった タイルは見えている。あまりは いつも れつの数より少ない）。
+ */
+function DivideRemTask({ core }: { core: TrialCore }) {
+  const { q, settings: s } = core;
+  const [n, r] = q.operands;
+  const answer = arrayAnswer('array_divide_rem', q.operands);
+  const rem = remainderOf(q.operands);
+  const [chosen, setChosen] = useState<number | null>(null);
+  const [tiles, setTiles] = useState<Pos[]>(() => layout(n, r, null));
+  const [stage, setStage] = useState<'cols' | 'rem'>('cols');
+  const [remPick, setRemPick] = useState<number | null>(null);
+  const [ok, setOk] = useState(false);
+  const pick = usePicker(core);
+  const colChoices = useMemo(() => choicesOf(q), [q]);
+  const remChoices = useMemo(() => shuffle([rem, ...remainderDistractors(q.operands, core.ctx.learning.choiceCount - 1)]), [q, rem, core.ctx.learning.choiceCount]);
+  const all = stage === 'cols' ? colChoices : remChoices;
+  const firstWrong = stage === 'cols' ? q.distractors[0] : remChoices.find((v) => v !== rem);
+  const target = stage === 'cols' ? answer : rem;
+  const values = core.hintLevel >= 2 ? all.filter((v) => v === target || v === firstWrong) : all;
+  const items: ChoiceItem[] = values.map((v) => ({ key: `${stage}-${v}`, value: v, label: s.numberLabels ? `${v}` : 'この かず', node: <ChoiceNode v={v} s={s} /> }));
+
+  const moveTo = async (to: Pos[]) => {
+    const from = tiles;
+    return core.anim.run('arrange', () => core.anim.tween(560, (t) => setTiles(lerpPos(from, to, t))));
+  };
+
+  core.onUndo(() => {
+    if (core.anim.busy || ok) return;
+    if (stage === 'cols' && chosen !== null) {
+      core.ctx.emit({ type: 'undo' });
+      setChosen(null);
+      setTiles(layout(n, r, null));
+    } else if (stage === 'rem' && remPick !== null) {
+      core.ctx.emit({ type: 'undo' });
+      setRemPick(null);
+    } else pick.clear();
+  });
+  // L3: 1れつの数では、正しい数で席に ならべて見せてから元にもどす。あまりでは、正しい数のカードを示す
+  core.onHint((lvl) => {
+    if (lvl !== 3) return;
+    if (stage === 'rem') return void core.runDemo();
+    void core.anim.run('demo', async () => {
+      setTiles(layoutRem(n, r, answer));
+      await core.anim.wait(1800);
+      setTiles(chosen !== null ? layout(n, r, chosen) : layout(n, r, null));
+    });
+  });
+
+  const place = async (item: ChoiceItem | undefined) => {
+    if (!item || core.anim.busy || ok) return;
+    pick.clear();
+    const v = item.value;
+    if (stage === 'cols') {
+      const correct = v === answer;
+      core.ctx.emit({ type: 'attempt', payload: { step: 'D1', value: v } });
+      core.ctx.emit({ type: 'decision_made', payload: { step: 'D1', value: v, correct } });
+      setChosen(v);
+      const done = await moveTo(correct ? layoutRem(n, r, v) : layout(n, r, v));
+      if (!done) return;
+      if (!correct) {
+        core.mistakes.current++;
+        return;
+      }
+      setStage('rem');
+      return;
+    }
+    const correct = v === rem;
+    core.ctx.emit({ type: 'attempt', payload: { step: 'D2', value: v } });
+    core.ctx.emit({ type: 'decision_made', payload: { step: 'D2', value: v, correct } });
+    setRemPick(v);
+    if (!correct) {
+      core.mistakes.current++;
+      return;
+    }
+    setOk(true);
+    core.finish(true);
+  };
+
+  const seatsN = chosen !== null ? r * chosen : 0;
+  const empty = stage === 'cols' && chosen !== null && seatsN > n ? seatPositions(r, chosen).slice(n) : [];
+  const leftOver = stage === 'cols' && chosen !== null && n > seatsN ? n - seatsN : 0;
+  const lanes = chosen === null ? Array.from({ length: r }, (_, i) => i) : [];
+  const laneCell = Math.min(60, (TILE_AREA.h - 40) / Math.max(r, 1));
+  const remBox = stage === 'rem' ? remPositions(rem) : [];
+  const under = (
+    <g>
+      <rect data-drop="array" x={TILE_AREA.x} y={TILE_AREA.y} width={TILE_AREA.w} height={TILE_AREA.h} fill="transparent" />
+      <line x1={GRID.x - 24} x2={GRID.x - 24} y1={TILE_AREA.y + 24} y2={TILE_AREA.y + TILE_AREA.h - 24} stroke={SLOT_STROKE} strokeWidth={2} strokeDasharray="6 8" pointerEvents="none" />
+      {lanes.map((i) => {
+        const y = TILE_AREA.y + (TILE_AREA.h - r * laneCell) / 2 + i * laneCell;
+        return <rect key={i} x={GRID.x} y={y + 3} width={GRID.w} height={laneCell - 6} rx={8} fill={TILE.empty} stroke={core.hintLevel >= 1 ? SLOT_STROKE_STRONG : SLOT_STROKE} strokeWidth={core.hintLevel >= 1 ? 3 : 2} strokeDasharray="8 6" pointerEvents="none" />;
+      })}
+      {empty.map((p, i) => (
+        <rect key={`e${i}`} x={p.x + 3} y={p.y + 3} width={p.size - 6} height={p.size - 6} rx={6} fill={TILE.empty} stroke={SLOT_STROKE} strokeWidth={2.5} strokeDasharray="7 5" pointerEvents="none" />
+      ))}
+      {remBox.length > 0 && (
+        <g pointerEvents="none">
+          <rect x={remBox[0].x - 14} y={remBox[0].y - 40} width={rem * REM_CELL + 24} height={REM_CELL + 54} rx={12} fill={PLACE_BG.ones} stroke={core.hintLevel >= 1 ? SLOT_STROKE_STRONG : PLACE_STROKE.ones} strokeWidth={core.hintLevel >= 1 ? 5 : 3} strokeDasharray="10 6" />
+          <text x={remBox[0].x - 4} y={remBox[0].y - 14} fontSize={22} fontWeight={800} fill={PLACE_STROKE.ones}>
+            あまり
+          </text>
+        </g>
+      )}
+    </g>
+  );
+  const g = chosen !== null ? gridGeom(r, chosen) : null;
+  const over = ok && g ? <rect x={g.x0 - 4} y={g.y0 - 4} width={answer * g.cell + 8} height={r * g.cell + 8} rx={10} fill="none" stroke={TILE.glow} strokeWidth={5} pointerEvents="none" /> : null;
+
+  const prompt = ok
+    ? s.numberLabels
+      ? `1れつに ${answer} こずつ、あまりは ${rem}！`
+      : 'ぴったり わけて、あまりも かぞえた！'
+    : stage === 'rem'
+      ? remPick !== null
+        ? 'あまりの タイルを かぞえて、もう いちど えらんで みよう'
+        : 'あまりは いくつ？ あまりの タイルを かぞえよう'
+      : chosen !== null && !core.anim.busy
+        ? leftOver > 0
+          ? 'のこりで、どの れつにも もう 1こずつ ならべられるね。もどすか、ほかのを えらんで みよう'
+          : 'あいた せきが あるね。もどすか、ほかのを えらんで みよう'
+        : s.numberLabels
+          ? `${n} この タイルを ${r} れつに おなじだけ ならべると、1れつ なんこ？`
+          : 'タイルを みぎの れつに おなじだけ ならべると、1れつ なんこ？';
+
+  return (
+    <ModeLayout
+      prompt={prompt}
+      field={
+        <div
+          style={{ width: '100%' }}
+          onClick={() => {
+            if (pick.selected) void place(items.find((i) => i.key === pick.selected));
+          }}
+        >
+          <TileField n={0} rows={1} tiles={tiles} s={s} glow={false} under={under} over={over} />
+        </div>
+      }
+      tray={
+        <ChoiceTray
+          key={stage}
+          items={items}
+          selected={pick.selected}
+          onTap={(it) => pick.toggle(it.key, it.value)}
+          drag={s.inputMethod === 'drag'}
+          snap={core.snap('array')}
+          onDrop={(it) => void place(it)}
+          demoKey={core.demo === 'pick' ? `${stage}-${target}` : null}
+          disabled={ok}
+        />
+      }
+    />
+  );
+}
+
 function Task({ bridge }: { bridge: ModeBridge }) {
   const core = useTrialCore(bridge);
   const t = core.q.taskType;
   // 自由探索（ホームで「じゆうに あそぶ」を選んだとき）は E タイル・リアクターと同じ
   if (core.q.learningStage === 'explore') return <TileLab core={core} />;
   if (t === 'array_divide') return <DivideTask core={core} />;
+  if (t === 'array_divide_rem') return <DivideRemTask core={core} />;
   return <CountTask core={core} task={t === 'array_split' ? 'array_split' : 'array_multiply'} />;
 }
 
@@ -326,9 +503,10 @@ export const ArraysMode = createReactPlugin(
     title: 'タイルの かけわり',
     description:
       'タイルの配列で、掛け算（ぜんぶで いくつ）・割り算（r れつに ならべると 1れつ なんこ）・2けた×1けた（10の列と のこりの列）を選ぶ。違う数でも、その数を同じ れつ にならべた形を見せるだけ。E タイル・リアクターの盤を使い、E の自由探索は変えない。',
-    supportedTasks: ['array_multiply', 'array_divide', 'array_split'],
+    // v2.13: あまりのある わりざんは、今の課題のあと
+    supportedTasks: ['array_multiply', 'array_divide', 'array_split', 'array_divide_rem'],
     supportedStrategies: ['none'],
-    stages: { array_multiply: ['construct'], array_divide: ['construct'], array_split: ['construct'] },
+    stages: { array_multiply: ['construct'], array_divide: ['construct'], array_split: ['construct'], array_divide_rem: ['construct'] },
     group: 'core',
   },
   View,

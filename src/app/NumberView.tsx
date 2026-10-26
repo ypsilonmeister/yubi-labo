@@ -54,6 +54,9 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
       return [`${b} × ${a} = ${revealed ? a * b : '？'}`];
     case 'array_divide':
       return [`${a} ÷ ${b} = ${revealed ? a / b : '？'}`];
+    case 'array_divide_rem':
+      // v2.13: 答えは「1れつの数 あまり いくつ」
+      return [`${a} ÷ ${b} = ${revealed ? `${Math.floor(a / b)} あまり ${a % b}` : '？'}`];
     case 'carry_2d1':
     case 'carry_2d2': {
       // v2.11: 一の位で 10をつくり、十の位は 10のカードで数える。答えは試行が終わってから

@@ -168,6 +168,7 @@ export function heatAxis(task: TaskCategory, synthesisMax: number): HeatAxis {
     case 'borrow_2d2':
       // v2.11: 組が多く、表にならない（課題別の集計表で見る）
       return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };
+    case 'array_divide_rem':
     case 'array_divide':
       // v2.10: operands は [ぜんぶの数, 行]。表にせず、課題別の集計表で見る
       return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };

@@ -29,7 +29,9 @@ export type TaskCategory =
   | 'carry_2d1'
   | 'borrow_2d1'
   | 'carry_2d2'
-  | 'borrow_2d2';
+  | 'borrow_2d2'
+  // 実装拡張（v2.13・§9.10 あまりのある わりざん）
+  | 'array_divide_rem';
 
 export type ModeId =
   | 'mode_a_parity'
