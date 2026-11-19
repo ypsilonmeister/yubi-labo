@@ -37,6 +37,38 @@ describe('v2.15 ルール1: 同じ日の同じ問題は「れんしゅう」（0
     expect(s[1].practice).toBe(true);
   });
 
+  it('段階がちがえば同じ問題でも くり返しにしない（観察→予測→本課題は、それぞれ初めて解く）', () => {
+    // 観察は決定点がない（§7.3）。予測と本課題は決定点がちがう（§10: 本課題と同じ決定点なのは表現横断と後日再確認だけ）
+    const observed: TrialResult = { outcome: 'explored', assistanceLevel: 'not_completed', correctWithoutHint: false, mistakeCount: 0, hintCount: 0, maxHintLevel: 0 };
+    const obsBase = trial({ mode: 'mode_c_tenframe', task: 'carry_over', ops: [8, 5], at: D1, stage: 'observe', result: observed });
+    const obs: Trial = { ...obsBase, events: [{ type: 'input_disabled', timestampMs: 1, payload: { reason: 'finished' } }] };
+    const pred = trial({ mode: 'mode_c_tenframe', task: 'carry_over', ops: [8, 5], at: D1b, stage: 'predict' });
+    const cons = trial({ mode: 'mode_c_tenframe', task: 'carry_over', ops: [8, 5], at: D1b, stage: 'construct' });
+    const s = scoreAll([session([obs, pred, cons], D1)], modes);
+    expect(s.map((x) => x.tenths)).toEqual([POINTS.observed * 10, POINTS.firstTry * 10, POINTS.firstTry * 10]);
+    expect(s.map((x) => x.practice)).toEqual([false, false, false]);
+    // 同じ段階での解き直しは、従来どおり「れんしゅう」
+    const again = trial({ mode: 'mode_c_tenframe', task: 'carry_over', ops: [8, 5], at: D1b, stage: 'construct' });
+    const s2 = scoreAll([session([obs, pred, cons, again], D1)], modes);
+    expect(s2[3].tenths).toBe(0);
+    expect(s2[3].practice).toBe(true);
+  });
+
+  it('表現横断も本課題と同じ段階に数える（同じモードでの「もういちど」は れんしゅう）', () => {
+    // 「もういちど」は transfer を construct に変えて同じ問題を出す（PlayScreen）ため、同じモードなら くり返しになる
+    const t = trial({ mode: 'mode_d_exchange', task: 'borrow', ops: [13, 5], at: D1, stage: 'transfer' });
+    const again = trial({ mode: 'mode_d_exchange', task: 'borrow', ops: [13, 5], at: D1b, stage: 'construct' });
+    const s = scoreAll([session([t, again], D1)], modes);
+    expect(s.map((x) => x.tenths)).toEqual([(POINTS.firstTry + POINTS.transferBonus) * 10, 0]);
+    expect(s[1].practice).toBe(true);
+    // 逆順（同じモードで 本課題→表現横断）も同じ
+    const c = trial({ mode: 'mode_d_exchange', task: 'borrow', ops: [13, 5], at: D1, stage: 'construct' });
+    const tr = trial({ mode: 'mode_d_exchange', task: 'borrow', ops: [13, 5], at: D1b, stage: 'transfer' });
+    const s2 = scoreAll([session([c, tr], D1)], modes);
+    expect(s2.map((x) => x.tenths)).toEqual([POINTS.firstTry * 10, 0]);
+    expect(s2[1].practice).toBe(true);
+  });
+
   it('べつの せかい（表現横断。モードがちがう）は くり返しに数えず、ボーナスも入る', () => {
     const a = trial({ mode: 'mode_c_tenframe', task: 'borrow', ops: [13, 5], at: D1 });
     const t = trial({ mode: 'mode_d_exchange', task: 'borrow', ops: [13, 5], at: D1b, stage: 'transfer' });

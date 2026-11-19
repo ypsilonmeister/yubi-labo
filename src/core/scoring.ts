@@ -1,7 +1,9 @@
 // 実装拡張（v2.15・保護者判断と本人の案）: くり返しで点を集めにくくする。記録から毎回計算する純粋関数（点は保存しない）。
 //
-// ルール1（同じ問題のくり返し）: 同じ日（JST）に、同じモードで、同じ問題（問題ID）を すでに点をもらって解いていたら、0点（「れんしゅう」）。
-//   別の日の解き直し（後日の確認）と、べつの せかい（表現横断。モードがちがう）は くり返しに数えない。
+// ルール1（同じ問題のくり返し）: 同じ日（JST）に、同じモードで、同じ問題（問題ID）を、同じ段階で すでに点をもらって解いていたら、0点（「れんしゅう」）。
+//   段階がちがえば別の「初めて解く」として数える: 観察は決定点がなく（§7.3）、予測と本課題は決定点がちがう（§10。本課題と同じ決定点なのは表現横断と後日再確認だけ）。
+//   後日再確認（revisit）と表現横断（transfer）は本課題と同じ段階として数える（§10: 本課題と同じ決定点。stepOfTrial と同じ正規化）。
+//   表現横断が くり返しに数えないのはモードがちがうためで、同じモードでの transfer→construct（「もういちど」は transfer を construct に変えて同じ問題を出す）は くり返しに数える。別の日の解き直しは くり返しに数えない。
 // ルール2（もう できた ところ）: おまかせ進行で済んだ段（2回続けてぴったり）を、今のおまかせ進行の段ではないのに遊んだら、点は 10分の1。
 //   本人の案「やさしい ところの 10てんで、ちょうせんの 1てん」。今の挑戦の段（全部済んだあとの最後の段も）と、後日の確認は満点のまま。
 // 10分の1 の点を正確に数えるため、中では 10分の1点（tenths）の単位で足す。見せるときは「てん」と、つぎの 1てんまでの小さな点（0〜9）。
@@ -58,7 +60,7 @@ export function trialsInOrder(sessions: Session[]): { trial: Trial; session: Ses
  */
 export function scoreAll(sessions: Session[], modes: ModeLookup): ScoredTrial[] {
   const out: ScoredTrial[] = [];
-  const earned = new Set<string>(); // 日付|モード|問題ID
+  const earned = new Set<string>(); // 日付|モード|段階|問題ID（段階は revisit・transfer を本課題に正規化）
   // モードごと・段ごとの「済んだか」と「ひとつ前が きれいだったか」
   const mastered = new Map<ModeId, Set<string>>();
   const prevClean = new Map<string, boolean>();
@@ -70,7 +72,7 @@ export function scoreAll(sessions: Session[], modes: ModeLookup): ScoredTrial[] 
     }
     const base = trialPoints(t);
     const stage = t.question.learningStage;
-    const key = `${jstDateKey(startOf(t, s))}|${t.modeId}|${t.question.id}`;
+    const key = `${jstDateKey(startOf(t, s))}|${t.modeId}|${stage === 'revisit' || stage === 'transfer' ? 'construct' : stage}|${t.question.id}`;
     const step = stepOfTrial(t);
     let tenths = base * 10;
     let practice = false;
