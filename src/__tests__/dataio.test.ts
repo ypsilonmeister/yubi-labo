@@ -336,4 +336,28 @@ describe('v1 移行の入口の一致 (P2-3)', () => {
     expect(s.migrationReport).toMatchObject({ trialCount: 1, sessionCount: 1, skipped: 1 });
     expect(meta.migrationReport).toEqual(s.migrationReport);
   });
+
+  it('起動時の移行で既存セッションと ID が衝突したら、保存した分だけをレポートする', async () => {
+    const { Store } = await import('../core/storage/db');
+    const l = (id: string, ts: string) => ({ id, timestamp: ts, modeId: 'mode_c', taskCategory: 'carry_over', numbers: [8, 5], isCorrect: true, mistakeCount: 0 });
+    const raw = { logs: [l('a', '2026-01-05T01:00:00Z'), l('b', '2026-01-05T01:01:00Z'), l('c', '2026-01-08T01:00:00Z'), l('d', 'bad-date')] };
+    const first = previewImport(JSON.stringify(raw), emptyAppData());
+    const existingId = first.data!.sessions[0].sessionId;
+    const puts: any[] = [];
+    const meta: Record<string, unknown> = {};
+    const fakeDb = {
+      transaction: () => ({ store: { put: async (x: unknown) => void puts.push(x) }, done: Promise.resolve() }),
+      put: async (_: string, v: unknown, k: string) => void (meta[k] = v),
+    };
+    (globalThis as any).localStorage = { getItem: () => JSON.stringify(raw) };
+    const s: any = new Store();
+    s.db = fakeDb;
+    s.data.sessions = [{ ...first.data!.sessions[0], sessionId: existingId }];
+    await s.migrateFromLocalStorage();
+    delete (globalThis as any).localStorage;
+    const added = puts.flatMap((x) => x.trials.map((t: any) => t.trialId));
+    expect(added).toEqual(['v1-c']);
+    expect(s.migrationReport).toMatchObject({ logCount: 4, trialCount: 1, sessionCount: 1, skipped: 3 });
+    expect(meta.migrationReport).toEqual(s.migrationReport);
+  });
 });
