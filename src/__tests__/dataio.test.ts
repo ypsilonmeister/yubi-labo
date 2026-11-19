@@ -49,7 +49,9 @@ describe('§11.3 エクスポート・インポート', () => {
   it('受け入れテスト6: 不正なJSONは検証で弾き、データを作らない', () => {
     const cur = sample();
     expect(previewImport('{oops', cur).data).toBeNull();
-    expect(previewImport(JSON.stringify({ schemaVersion: '2.1', profile: {}, sessions: [{ sessionId: 1 }] }), cur).errors.length).toBeGreaterThan(0);
+    expect(validateAppData({ schemaVersion: '2.1', profile: {}, sessions: [{ sessionId: 1 }] }).length).toBeGreaterThan(0);
+    expect(previewImport(JSON.stringify({ schemaVersion: '2.1', profile: {}, sessions: 'x' }), cur).data).toBeNull();
+    expect(previewImport(JSON.stringify({ schemaVersion: '2.0', profile: {}, sessions: [] }), cur).data).toBeNull();
     expect(validateAppData(sample())).toEqual([]);
   });
 
@@ -158,5 +160,87 @@ describe('v2.5 基準点', () => {
     expect(ok.scoreBaseline).toEqual({ points: 2100, at: '2026-10-20T12:00:00+09:00' });
     const bad = withDefaults({ playerLabel: 'x', settings: DEFAULT_SETTINGS, learning: DEFAULT_LEARNING, scoreBaseline: { points: 'x', at: 'y' } } as never);
     expect(bad.scoreBaseline).toBeUndefined();
+  });
+});
+
+describe('#24 インポート検証（項目単位で弾く）', () => {
+  const craft = { value: 7, parts: [3, 4], firstMadeAt: '2026-10-17T07:30:00+09:00', modeId: 'mode_a_parity' };
+  function fixture() {
+    const d = sample();
+    const good = d.sessions[0];
+    const mk = (id: string, tid: string, mut?: (t: any) => void) => {
+      const s = JSON.parse(JSON.stringify(good));
+      s.sessionId = id;
+      s.trials[0].trialId = tid;
+      mut?.(s.trials[0]);
+      return s;
+    };
+    d.sessions = [
+      mk('g1', 'tg1'),
+      mk('bad-result', 'tb1', (t) => (t.result.outcome = 'wow')),
+      mk('bad-operand', 'tb2', (t) => (t.question.operands = [8, 'x'])),
+      mk('bad-count', 'tb3', (t) => (t.result.mistakeCount = -1)),
+      mk('g1', 'tg2'), // ファイル内でセッションIDが重複
+      mk('g3', 'tg1'), // ファイル内で試行IDが重複
+    ];
+    d.craftBook = [craft as any, { ...craft, value: 'x' } as any, { ...craft, parts: [1, 'a'] } as any, { ...craft, firstMadeAt: 'nope' } as any];
+    (d.profile.settings as any).colorScheme = 'neon';
+    (d.profile.learning as any).roundLength = 99;
+    (d.profile.learning as any).choiceCount = 3;
+    return d;
+  }
+
+  it('壊れた項目だけを弾いて件数を出し、正常な項目は取り込む', () => {
+    const pv = previewImport(JSON.stringify(fixture()), emptyAppData());
+    expect(pv.errors).toEqual([]);
+    expect(pv.data).not.toBeNull();
+    expect(pv.rejected).toMatchObject({ trials: 3, craft: 3 });
+    expect(pv.rejected.settingKeys.sort()).toEqual(['colorScheme', 'roundLength']);
+    expect(pv.data!.sessions.flatMap((s) => s.trials.map((t) => t.trialId))).toEqual(['tg1', 'tg2', 'tg1']);
+    expect(pv.data!.craftBook).toHaveLength(1);
+    // 不正な設定値は既定値に戻る
+    expect(pv.data!.profile.settings.colorScheme).toBe(DEFAULT_SETTINGS.colorScheme);
+    expect(pv.data!.profile.learning!.roundLength).toBe(DEFAULT_LEARNING.roundLength);
+    expect(pv.data!.profile.learning!.choiceCount).toBe(3);
+  });
+
+  it('ファイル内部の重複IDをプレビューに出す', () => {
+    const pv = previewImport(JSON.stringify(fixture()), emptyAppData());
+    expect(pv.internalDuplicateSessionIds).toEqual(['g1']);
+    expect(pv.internalDuplicateTrialIds).toEqual(['tg1']);
+  });
+
+  it('既存データは弾いた項目の影響を受けず、マージでも内部重複を足さない', () => {
+    const cur = sample();
+    const before = JSON.stringify(cur);
+    const pv = previewImport(JSON.stringify(fixture()), cur);
+    const merged = mergeData(cur, pv.data!);
+    expect(JSON.stringify(cur)).toBe(before);
+    expect(merged.sessions.map((s) => s.sessionId).sort()).toEqual(['g1', 'g3', 's1'].sort());
+    expect(merged.craftBook).toHaveLength(1);
+  });
+
+  it('result の欠けは許し、設定の範囲外・型違いは弾く', () => {
+    const d = sample();
+    delete (d.sessions[0].trials[0] as any).result;
+    expect(validateAppData(d)).toEqual([]);
+    (d.profile.learning as any).minTrialsForComparison = -3;
+    (d.profile.learning as any).idleThresholdMs = 'x';
+    (d.profile.settings as any).fiveToken = 'yes';
+    const pv = previewImport(JSON.stringify(d), emptyAppData());
+    expect(pv.rejected.settingKeys.sort()).toEqual(['fiveToken', 'idleThresholdMs', 'minTrialsForComparison']);
+    expect(pv.rejected.trials).toBe(0);
+  });
+
+  it('正常なバックアップは従来どおり復元できる', () => {
+    const d = sample();
+    d.craftBook = [craft as any];
+    const pv = previewImport(JSON.stringify(d), emptyAppData());
+    expect(pv.errors).toEqual([]);
+    expect(pv.rejected).toEqual({ sessions: 0, trials: 0, craft: 0, settingKeys: [] });
+    expect(pv.internalDuplicateSessionIds).toEqual([]);
+    expect(pv.data!.sessions).toEqual(d.sessions);
+    expect(pv.data!.profile.settings).toEqual(d.profile.settings);
+    expect(pv.data!.craftBook).toEqual(d.craftBook);
   });
 });
