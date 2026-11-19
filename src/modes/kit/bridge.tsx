@@ -3,6 +3,7 @@
 
 import { createRoot, type Root } from 'react-dom/client';
 import { useSyncExternalStore, type ComponentType } from 'react';
+import { ErrorBoundary, MODE_ERROR_EVENT } from '../../app/ErrorBoundary';
 import type { AccessibilitySettings, GameContext, GameModePlugin, LearningStage, Question, Strategy, TaskCategory } from '../../core/types';
 
 export interface BridgeState {
@@ -79,7 +80,13 @@ export function createReactPlugin(meta: PluginMeta, View: ComponentType<{ bridge
       el.className = 'plugin-root';
       container.appendChild(el);
       root = createRoot(el);
-      root.render(<View bridge={bridge} />);
+      const node = el;
+      // 描画例外はここで止め、PlayScreen 側の境界へイベントで知らせる（白画面にしない）
+      root.render(
+        <ErrorBoundary onBack={() => {}} fallback={null} onError={() => node.dispatchEvent(new CustomEvent(MODE_ERROR_EVENT, { bubbles: true }))}>
+          <View bridge={bridge} />
+        </ErrorBoundary>,
+      );
     },
     loadQuestion(q) {
       bridge?.set({ question: q, qKey: (bridge.state.qKey ?? 0) + 1, hintLevel: 0, hintCount: 0, paused: false });

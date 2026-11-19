@@ -13,6 +13,7 @@ import { RankingList } from './HomeScreens';
 import { GameRegistry } from '../../core/registry';
 import type { SessionEngine, TrialHandle } from '../../core/engine/SessionEngine';
 import { continuationsOf, exploreQuestion, generateQuestion, retarget, type PickContext } from '../../core/engine/questions';
+import { MODE_ERROR_EVENT } from '../ErrorBoundary';
 import { NumberView } from '../NumberView';
 import { ModeIcon } from '../icons';
 import { STAGE_LABEL, taskLabel } from '../labels';
@@ -65,6 +66,8 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   const [showNumbers, setShowNumbers] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
+  // モード側（別ルート）で描画例外が起きたら、外側の ErrorBoundary に渡すために描画中に投げ直す
+  const [modeCrashed, setModeCrashed] = useState(false);
   // ラウンドの結果で「まえの ランク」と比べるため、始めたときの合計点を覚えておく
   const pointsAtStart = useRef<number>(totalPoints());
 
@@ -121,9 +124,13 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
     engine.onTrialDone = (t) => {
       if (t.result?.outcome !== 'abandoned') setDone(t);
     };
-    plugin.mount(host.current!, relay);
+    const hostEl = host.current!;
+    const onModeError = () => setModeCrashed(true);
+    hostEl.addEventListener(MODE_ERROR_EVENT, onModeError);
+    plugin.mount(hostEl, relay);
     load(spec.question ?? newQuestion(spec.stage));
     return () => {
+      hostEl.removeEventListener(MODE_ERROR_EVENT, onModeError);
       handle.current?.close('abandoned');
       handle.current = null;
       engine.onTrialDone = null;
@@ -187,6 +194,8 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   // v2.7: 連続する課題（はんぶんチャレンジ）は、終わったあとの選び方を課題が決める。自動では進めない
   const conts = useMemo(() => (done ? continuationsOf(done, learningRef.current) : null), [done]);
   const chained = !!conts;
+
+  if (modeCrashed) throw new Error('mode render failed');
 
   return (
     <div className="play">

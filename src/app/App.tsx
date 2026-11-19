@@ -11,6 +11,7 @@ import { HomeScreen, ModeScreen, RankingScreen, StartScreen } from './screens/Ho
 import { legacyTotalPoints, ranking, totalPoints, countsInRound } from '../core/score';
 import { rankingTenths, splitTenths, totalTenths, type ModeLookup } from '../core/scoring';
 import { uid } from '../core/time';
+import { ErrorBoundary } from './ErrorBoundary';
 import { PlayScreen, type PlaySpec } from './screens/PlayScreen';
 import { CraftBookScreen } from './screens/CraftBookScreen';
 import { EndScreen } from './screens/EndScreen';
@@ -144,6 +145,7 @@ function Loaded({ store }: { store: Store }) {
         />
       )}
       {screen.name === 'play' && (
+        <ErrorBoundary key={screen.key} onBack={() => setScreen(learning.freeChoice ? { name: 'mode', mode: screen.spec.mode } : { name: 'home' })}>
         <PlayScreen
           key={screen.key}
           spec={screen.spec}
@@ -161,6 +163,7 @@ function Loaded({ store }: { store: Store }) {
           onExit={() => setScreen(learning.freeChoice ? { name: 'mode', mode: screen.spec.mode } : { name: 'home' })}
           onTransfer={play}
         />
+        </ErrorBoundary>
       )}
       {screen.name === 'ranking' && <RankingScreen list={rankingOf(10, learning.roundLength)} points={points} onBack={() => setScreen({ name: 'home' })} />}
       {screen.name === 'craft' && <CraftBookScreen entries={data.craftBook ?? []} s={settings} onBack={() => setScreen({ name: 'home' })} />}
