@@ -3,7 +3,7 @@
 
 import { openDB, type IDBPDatabase } from 'idb';
 import type { AppData, CraftEntry, Session } from '../types';
-import { craftKey, emptyAppData, migrateV1, withDefaults, type MigrationReport } from './dataio';
+import { craftKey, emptyAppData, migrateV1Checked, withDefaults, type MigrationReport } from './dataio';
 
 const DB_NAME = 'math_craft_app_data_v2';
 const V1_KEY = 'math_craft_app_data_v1';
@@ -62,7 +62,7 @@ export class Store {
     }
     if (!raw) return;
     try {
-      const { data, report, errors } = migrateV1(JSON.parse(raw));
+      const { data, report, errors } = migrateV1Checked(JSON.parse(raw));
       if (errors.length) return;
       const ids = new Set(this.data.sessions.map((x) => x.sessionId));
       const tx = this.db.transaction('sessions', 'readwrite');

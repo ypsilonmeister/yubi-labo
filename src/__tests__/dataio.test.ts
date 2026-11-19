@@ -306,3 +306,34 @@ describe('#24 インポート検証（項目単位で弾く）', () => {
     });
   });
 });
+
+describe('v1 移行の入口の一致 (P2-3)', () => {
+  const log = (id: string, mistakeCount: number) => ({ id, timestamp: '2026-01-05T01:00:00Z', modeId: 'mode_c', taskCategory: 'carry_over', numbers: [8, 5], isCorrect: true, mistakeCount });
+  const v1 = { logs: [log('bad', -1), log('good', 0)] };
+
+  it('ファイル取り込みの移行レポートは除外後の件数を示す', () => {
+    const pv = previewImport(JSON.stringify(v1), emptyAppData());
+    expect(pv.data!.sessions.flatMap((s) => s.trials.map((t) => t.trialId))).toEqual(['v1-good']);
+    expect(pv.migration).toMatchObject({ logCount: 2, trialCount: 1, sessionCount: 1, skipped: 1 });
+  });
+
+  it('起動時の自動移行も壊れた試行を保存せず、レポートも一致する', async () => {
+    const { Store } = await import('../core/storage/db');
+    const puts: any[] = [];
+    const meta: Record<string, unknown> = {};
+    const fakeDb = {
+      transaction: () => ({ store: { put: async (s: unknown) => void puts.push(s) }, done: Promise.resolve() }),
+      put: async (_: string, v: unknown, k: string) => void (meta[k] = v),
+    };
+    (globalThis as any).localStorage = { getItem: () => JSON.stringify(v1) };
+    const s: any = new Store();
+    s.db = fakeDb;
+    await s.migrateFromLocalStorage();
+    delete (globalThis as any).localStorage;
+    const ids = (arr: any[]) => arr.flatMap((x) => x.trials.map((t: any) => t.trialId));
+    expect(ids(puts)).toEqual(['v1-good']);
+    expect(ids(s.data.sessions)).toEqual(['v1-good']);
+    expect(s.migrationReport).toMatchObject({ trialCount: 1, sessionCount: 1, skipped: 1 });
+    expect(meta.migrationReport).toEqual(s.migrationReport);
+  });
+});

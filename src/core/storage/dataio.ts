@@ -274,14 +274,12 @@ export function previewImport(text: string, current: AppData): ImportPreview {
   let rejected = NO_REJECTED();
   if (isObj(raw) && Array.isArray(raw.logs) && raw.schemaVersion === undefined) {
     format = 'v1';
-    const m = migrateV1(raw);
+    const m = migrateV1Checked(raw);
     errors = m.errors;
     migration = m.report;
-    // v2.1 と同じ項目検証を通す（移行直後と再読み込みで結果が変わらないように）
     if (!m.errors.length) {
-      const r = sanitizeAppData(m.data);
-      data = r.data;
-      rejected = r.rejected;
+      data = m.data;
+      rejected = m.rejected;
     }
   } else {
     const r = sanitizeAppData(raw);
@@ -458,6 +456,21 @@ export function migrateV1(raw: Record<string, unknown>): { data: AppData; report
     craftBook: [],
   };
   return { data, report, errors };
+}
+
+/**
+ * v1 を移行し、v2.1 と同じ項目検証を通す。ファイル取り込みと起動時の自動移行の共通入口。
+ * 除外された試行は移行レポートの trialCount から引き、skipped に加える。
+ */
+export function migrateV1Checked(raw: Record<string, unknown>): { data: AppData; report: MigrationReport; errors: string[]; rejected: RejectedCounts } {
+  const m = migrateV1(raw);
+  if (m.errors.length) return { ...m, rejected: NO_REJECTED() };
+  const r = sanitizeAppData(m.data);
+  const data = r.data ?? m.data;
+  const kept = data.sessions.reduce((n, s) => n + s.trials.length, 0);
+  const dropped = m.report.trialCount - kept;
+  const report = { ...m.report, trialCount: kept, sessionCount: data.sessions.length, skipped: m.report.skipped + dropped };
+  return { data, report, errors: m.errors, rejected: r.rejected };
 }
 
 // ---------- CSV（§11.3: セッション・試行・イベントを別出力） ----------
