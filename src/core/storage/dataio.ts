@@ -58,7 +58,6 @@ const isCount = (x: unknown): x is number => isNum(x) && Number.isInteger(x) && 
 const isDate = (x: unknown): boolean => typeof x === 'string' && !Number.isNaN(new Date(x).getTime());
 const oneOf = (...vs: unknown[]) => (x: unknown) => vs.includes(x);
 const isBool = (x: unknown) => typeof x === 'boolean';
-const posInt = (x: unknown) => isNum(x) && Number.isInteger(x) && x >= 1;
 
 type Rules = Record<string, (x: unknown) => boolean>;
 
@@ -84,9 +83,10 @@ const SETTINGS_RULES: Rules = {
 const LEARNING_RULES: Rules = {
   choiceCount: oneOf(2, 3, 4),
   synthesisMax: oneOf(5, 10),
-  minTrialsForComparison: posInt,
-  minDaysForComparison: posInt,
-  idleThresholdMs: (x) => isNum(x) && x > 0,
+  // 画面（SettingsPanel）の入力範囲に合わせる。画面は小数も保存できるので整数には限らない
+  minTrialsForComparison: (x) => isNum(x) && x >= 1 && x <= 100,
+  minDaysForComparison: (x) => isNum(x) && x >= 1 && x <= 30,
+  idleThresholdMs: (x) => isNum(x) && x >= 1000 && x <= 120000,
   selfReportEnabled: isBool,
   craftBookEnabled: isBool,
   scoreEnabled: isBool,
@@ -109,6 +109,8 @@ function cleanFields(x: unknown, rules: Rules): { clean: Record<string, unknown>
 
 const CRAFT_KINDS = ['sum', 'product', 'prime', 'balance', 'power', 'fraction', 'period', 'shape'];
 const OUTCOMES = ['completed', 'skipped', 'abandoned', 'explored'];
+const TIMES_OF_DAY = ['morning', 'midday', 'evening', 'night'];
+const EVENT_TYPES = ['question_shown', 'input_enabled', 'input_disabled', 'item_selected', 'item_deselected', 'attempt', 'undo', 'prediction_made', 'decision_made', 'hint_requested', 'animation_started', 'animation_ended', 'paused', 'resumed', 'visibility_hidden', 'visibility_visible', 'settings_changed', 'completed', 'skipped', 'abandoned'];
 const ASSISTANCE = ['independent', 'after_hint', 'after_demo', 'not_completed'];
 
 /** 試行ひとつの問題点（空なら正常） */
@@ -123,8 +125,12 @@ function trialProblems(t: unknown): string[] {
     if (!q.operands.every(isNum)) p.push('question.operands に数値でないものがあります');
     if (q.expectedValue !== null && q.expectedValue !== undefined && !isNum(q.expectedValue)) p.push('question.expectedValue が数値ではありません');
   }
-  if (!Array.isArray(t.events) || !t.events.every((e) => isObj(e) && typeof e.type === 'string' && typeof e.timestampMs === 'number'))
+  if (!Array.isArray(t.events) || !t.events.every((e) => isObj(e) && EVENT_TYPES.includes(e.type as string) && isNum(e.timestampMs)))
     p.push('events が不正');
+  // 旧スナップショットは後から増えた項目が欠けていてよい。オブジェクトであることだけ確かめる
+  if (!isObj(t.settingsSnapshot)) p.push('settingsSnapshot が不正');
+  if (t.startedAt !== undefined && !isDate(t.startedAt)) p.push('startedAt が日時ではありません');
+  if (t.timeOfDay !== undefined && !TIMES_OF_DAY.includes(t.timeOfDay as string)) p.push('timeOfDay が不明');
   if (t.result !== undefined) {
     const r = t.result;
     if (!isObj(r) || !OUTCOMES.includes(r.outcome as string) || !ASSISTANCE.includes(r.assistanceLevel as string) || typeof r.correctWithoutHint !== 'boolean' ||
@@ -140,6 +146,8 @@ function sessionProblems(s: unknown): string[] {
   const p: string[] = [];
   if (typeof s.sessionId !== 'string') p.push('sessionId がありません');
   if (!isDate(s.startedAt)) p.push('startedAt が日時ではありません');
+  if (s.endedAt !== undefined && !isDate(s.endedAt)) p.push('endedAt が日時ではありません');
+  if (s.timeOfDay !== undefined && !TIMES_OF_DAY.includes(s.timeOfDay as string)) p.push('timeOfDay が不明');
   if (!Array.isArray(s.trials)) p.push('trials が配列ではありません');
   return p;
 }
@@ -150,6 +158,7 @@ function craftProblems(c: unknown): string[] {
   if (!isNum(c.value)) p.push('value が数値ではありません');
   if (!Array.isArray(c.parts) || !c.parts.every(isNum)) p.push('parts が数値の配列ではありません');
   if (!isDate(c.firstMadeAt)) p.push('firstMadeAt が日時ではありません');
+  if (c.modeId !== undefined && !MODE_IDS.includes(c.modeId as ModeId)) p.push('modeId が不明');
   if (c.kind !== undefined && !CRAFT_KINDS.includes(c.kind as string)) p.push('kind が不明');
   return p;
 }
@@ -268,7 +277,12 @@ export function previewImport(text: string, current: AppData): ImportPreview {
     const m = migrateV1(raw);
     errors = m.errors;
     migration = m.report;
-    data = m.errors.length ? null : m.data;
+    // v2.1 と同じ項目検証を通す（移行直後と再読み込みで結果が変わらないように）
+    if (!m.errors.length) {
+      const r = sanitizeAppData(m.data);
+      data = r.data;
+      rejected = r.rejected;
+    }
   } else {
     const r = sanitizeAppData(raw);
     errors = r.fatal;
@@ -298,10 +312,13 @@ export function previewImport(text: string, current: AppData): ImportPreview {
 export function mergeData(current: AppData, incoming: AppData): AppData {
   const ids = new Set(current.sessions.map((s) => s.sessionId));
   const sessions = [...current.sessions];
+  const seenTrials = new Set<string>();
   for (const s of incoming.sessions) {
     if (ids.has(s.sessionId)) continue;
     ids.add(s.sessionId); // ファイル内で同じIDが続いても最初の1件だけ
-    sessions.push(s);
+    // 試行IDもファイルの中では最初の1件だけ（既存データとの重複は従来どおり）
+    const trials = s.trials.filter((t) => !seenTrials.has(t.trialId) && !!seenTrials.add(t.trialId));
+    sessions.push(trials.length === s.trials.length ? s : { ...s, trials });
   }
   sessions.sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
   return { ...current, sessions, craftBook: mergeCraft(current.craftBook ?? [], incoming.craftBook ?? []) };

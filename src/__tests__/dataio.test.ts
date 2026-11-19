@@ -243,4 +243,66 @@ describe('#24 インポート検証（項目単位で弾く）', () => {
     expect(pv.data!.profile.settings).toEqual(d.profile.settings);
     expect(pv.data!.craftBook).toEqual(d.craftBook);
   });
+
+  describe('レビュー指摘の回帰 (#24)', () => {
+    const withTrial = (patch: Record<string, unknown>, id: string) => {
+      const d = sample();
+      d.sessions[0].trials.push({ ...JSON.parse(JSON.stringify(d.sessions[0].trials[0])), trialId: id, ...patch });
+      return d;
+    };
+    const ids = (d: AppData) => d.sessions.flatMap((x) => x.trials.map((t) => t.trialId));
+
+    it('settingsSnapshot が壊れた試行は除外され、CSV が失敗しない', () => {
+      const pv = previewImport(JSON.stringify(withTrial({ settingsSnapshot: null }, 'bad')), emptyAppData());
+      expect(pv.rejected.trials).toBe(1);
+      expect(() => trialsCsv(pv.data!, 10000)).not.toThrow();
+    });
+
+    it('旧スナップショット（項目が欠けている）は取り込める', () => {
+      const pv = previewImport(JSON.stringify(withTrial({ settingsSnapshot: { colorScheme: 'mono' } }, 'old')), emptyAppData());
+      expect(pv.rejected.trials).toBe(0);
+      expect(() => trialsCsv(pv.data!, 10000)).not.toThrow();
+    });
+
+    it('ファイル内で重複した試行IDは追加時に最初の1件だけ', () => {
+      const d = withTrial({}, 'dup');
+      d.sessions[0].trials.push({ ...d.sessions[0].trials[1] });
+      d.sessions.push({ ...d.sessions[0], sessionId: 's2', trials: [{ ...d.sessions[0].trials[1] }] });
+      const pv = previewImport(JSON.stringify(d), emptyAppData());
+      expect(pv.internalDuplicateTrialIds).toEqual(['dup']);
+      expect(ids(mergeData(emptyAppData(), pv.data!))).toEqual(['t1', 'dup']);
+    });
+
+    it('不正な日時・イベント種別・非有限タイムスタンプ・日時列挙を除外する', () => {
+      const d = sample();
+      d.sessions[0].trials.push(
+        { ...withTrial({ startedAt: 'invalid' }, 'bad-date').sessions[0].trials[1] },
+        { ...withTrial({ timeOfDay: 'noon' }, 'bad-tod').sessions[0].trials[1] },
+        { ...withTrial({ events: [{ type: 'invalid', timestampMs: 0 }] }, 'bad-event').sessions[0].trials[1] },
+        { ...withTrial({ events: [{ type: 'completed', timestampMs: 99999 }] }, 'bad-time').sessions[0].trials[1] },
+      );
+      const text = JSON.stringify(d).replace('99999', '1e999');
+      const pv = previewImport(text, emptyAppData());
+      expect(ids(pv.data!)).toEqual(['t1']);
+      const e = sample();
+      (e.sessions[0] as any).endedAt = 'nope';
+      expect(validateAppData(e).length).toBeGreaterThan(0);
+    });
+
+    it('学習設定の範囲は画面の保存範囲に合わせる', () => {
+      const d = sample();
+      Object.assign(d.profile.learning!, { minTrialsForComparison: 1.5, minDaysForComparison: 31, idleThresholdMs: 120001 });
+      const pv = previewImport(JSON.stringify(d), emptyAppData());
+      expect(pv.rejected.settingKeys.sort()).toEqual(['idleThresholdMs', 'minDaysForComparison']);
+      expect(pv.data!.profile.learning!.minTrialsForComparison).toBe(1.5);
+    });
+
+    it('v1 の壊れた記録も v2.1 と同じ検証で除外する', () => {
+      const log = (id: string, mistakeCount: number) => ({ id, timestamp: '2026-01-05T01:00:00Z', modeId: 'mode_c', taskCategory: 'carry_over', numbers: [8, 5], isCorrect: true, mistakeCount });
+      const v1 = { logs: [log('legacy', -1), log('good', 0)] };
+      const pv = previewImport(JSON.stringify(v1), emptyAppData());
+      expect(ids(pv.data!)).toEqual(['v1-good']);
+      expect(ids(previewImport(JSON.stringify(pv.data), emptyAppData()).data!)).toEqual(['v1-good']);
+    });
+  });
 });
