@@ -23,8 +23,8 @@ export function emptyAppData(): AppData {
 export function withDefaults(profile: Partial<AppData['profile']> | undefined): AppData['profile'] {
   return {
     playerLabel: typeof profile?.playerLabel === 'string' ? profile.playerLabel : 'プレイヤー',
-    settings: { ...DEFAULT_SETTINGS, ...(profile?.settings ?? {}) } as AccessibilitySettings,
-    learning: { ...DEFAULT_LEARNING, ...(profile?.learning ?? {}) } as LearningSettings,
+    settings: { ...DEFAULT_SETTINGS, ...cleanFields(profile?.settings, SETTINGS_RULES).clean } as AccessibilitySettings,
+    learning: { ...DEFAULT_LEARNING, ...cleanFields(profile?.learning, LEARNING_RULES).clean } as LearningSettings,
     ...(validBaseline(profile?.scoreBaseline) ? { scoreBaseline: profile!.scoreBaseline } : {}),
     ...(validBaseline(profile?.scoreRules) && profile!.scoreRules!.version === 'v2.15' ? { scoreRules: profile!.scoreRules } : {}),
   };
@@ -53,32 +53,185 @@ export function anonymize(data: AppData): AppData {
 // ---------- 検証 ----------
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
+const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+const isCount = (x: unknown): x is number => isNum(x) && Number.isInteger(x) && x >= 0;
+const isDate = (x: unknown): boolean => typeof x === 'string' && !Number.isNaN(new Date(x).getTime());
+const oneOf = (...vs: unknown[]) => (x: unknown) => vs.includes(x);
+const isBool = (x: unknown) => typeof x === 'boolean';
 
-export function validateAppData(x: unknown): string[] {
-  const errs: string[] = [];
+type Rules = Record<string, (x: unknown) => boolean>;
+
+// 設定・学習設定の列挙値と範囲。ここに無いキーは取り込まない
+const SETTINGS_RULES: Rules = {
+  quietMode: isBool,
+  soundEnabled: isBool,
+  reducedMotion: isBool,
+  inputMethod: oneOf('tap', 'drag'),
+  showEquationOnRequest: isBool,
+  highlightEmptySlots: isBool,
+  animationSpeed: oneOf('slow', 'normal', 'instant'),
+  effectLevel: oneOf('none', 'calm', 'normal'),
+  colorScheme: oneOf('cuisenaire', 'unified', 'mono'),
+  tenFrameFill: oneOf('pairs', 'fives'),
+  carryFirstOperand: oneOf('larger', 'first'),
+  borrowStrategy: oneOf('subtract_from_ten', 'subtract_subtract'),
+  fiveToken: isBool,
+  directManipulation: isBool,
+  rodGrid: isBool,
+  numberLabels: isBool,
+};
+const LEARNING_RULES: Rules = {
+  choiceCount: oneOf(2, 3, 4),
+  synthesisMax: oneOf(5, 10),
+  // 画面（SettingsPanel）の入力範囲に合わせる。画面は小数も保存できるので整数には限らない
+  minTrialsForComparison: (x) => isNum(x) && x >= 1 && x <= 100,
+  minDaysForComparison: (x) => isNum(x) && x >= 1 && x <= 30,
+  idleThresholdMs: (x) => isNum(x) && x >= 1000 && x <= 120000,
+  selfReportEnabled: isBool,
+  craftBookEnabled: isBool,
+  scoreEnabled: isBool,
+  roundLength: oneOf(5, 10, 15),
+  freeChoice: isBool,
+};
+
+/** 規則に合う項目だけを残す。合わない（または知らない）キーは bad に入れる */
+function cleanFields(x: unknown, rules: Rules): { clean: Record<string, unknown>; bad: string[] } {
+  const clean: Record<string, unknown> = {};
+  const bad: string[] = [];
+  if (!isObj(x)) return { clean, bad };
+  for (const [k, v] of Object.entries(x)) {
+    if (!rules[k]) continue; // 知らないキーは黙って捨てる（既定値の補完は withDefaults）
+    if (rules[k](v)) clean[k] = v;
+    else bad.push(k);
+  }
+  return { clean, bad };
+}
+
+const CRAFT_KINDS = ['sum', 'product', 'prime', 'balance', 'power', 'fraction', 'period', 'shape'];
+const OUTCOMES = ['completed', 'skipped', 'abandoned', 'explored'];
+const TIMES_OF_DAY = ['morning', 'midday', 'evening', 'night'];
+const EVENT_TYPES = ['question_shown', 'input_enabled', 'input_disabled', 'item_selected', 'item_deselected', 'attempt', 'undo', 'prediction_made', 'decision_made', 'hint_requested', 'animation_started', 'animation_ended', 'paused', 'resumed', 'visibility_hidden', 'visibility_visible', 'settings_changed', 'completed', 'skipped', 'abandoned'];
+const ASSISTANCE = ['independent', 'after_hint', 'after_demo', 'not_completed'];
+
+/** 試行ひとつの問題点（空なら正常） */
+function trialProblems(t: unknown): string[] {
+  if (!isObj(t)) return ['不正'];
+  const p: string[] = [];
+  if (typeof t.trialId !== 'string') p.push('trialId がありません');
+  if (!MODE_IDS.includes(t.modeId as ModeId)) p.push('modeId が不明');
+  const q = t.question;
+  if (!isObj(q) || typeof q.id !== 'string' || !TASKS.includes(q.taskType as TaskCategory) || !Array.isArray(q.operands)) p.push('question が不正');
+  else {
+    if (!q.operands.every(isNum)) p.push('question.operands に数値でないものがあります');
+    if (q.expectedValue !== null && q.expectedValue !== undefined && !isNum(q.expectedValue)) p.push('question.expectedValue が数値ではありません');
+  }
+  if (!Array.isArray(t.events) || !t.events.every((e) => isObj(e) && EVENT_TYPES.includes(e.type as string) && isNum(e.timestampMs)))
+    p.push('events が不正');
+  // 旧スナップショットは後から増えた項目が欠けていてよい。オブジェクトであることだけ確かめる
+  if (!isObj(t.settingsSnapshot)) p.push('settingsSnapshot が不正');
+  if (t.startedAt !== undefined && !isDate(t.startedAt)) p.push('startedAt が日時ではありません');
+  if (t.timeOfDay !== undefined && !TIMES_OF_DAY.includes(t.timeOfDay as string)) p.push('timeOfDay が不明');
+  if (t.result !== undefined) {
+    const r = t.result;
+    if (!isObj(r) || !OUTCOMES.includes(r.outcome as string) || !ASSISTANCE.includes(r.assistanceLevel as string) || typeof r.correctWithoutHint !== 'boolean' ||
+      !isCount(r.mistakeCount) || !isCount(r.hintCount) || ![0, 1, 2, 3].includes(r.maxHintLevel as number))
+      p.push('result が不正');
+  }
+  return p;
+}
+
+/** セッション自体（試行を除く）の問題点 */
+function sessionProblems(s: unknown): string[] {
+  if (!isObj(s)) return ['オブジェクトではありません'];
+  const p: string[] = [];
+  if (typeof s.sessionId !== 'string') p.push('sessionId がありません');
+  if (!isDate(s.startedAt)) p.push('startedAt が日時ではありません');
+  if (s.endedAt !== undefined && !isDate(s.endedAt)) p.push('endedAt が日時ではありません');
+  if (s.timeOfDay !== undefined && !TIMES_OF_DAY.includes(s.timeOfDay as string)) p.push('timeOfDay が不明');
+  if (!Array.isArray(s.trials)) p.push('trials が配列ではありません');
+  return p;
+}
+
+function craftProblems(c: unknown): string[] {
+  if (!isObj(c)) return ['オブジェクトではありません'];
+  const p: string[] = [];
+  if (!isNum(c.value)) p.push('value が数値ではありません');
+  if (!Array.isArray(c.parts) || !c.parts.every(isNum)) p.push('parts が数値の配列ではありません');
+  if (!isDate(c.firstMadeAt)) p.push('firstMadeAt が日時ではありません');
+  if (c.modeId !== undefined && !MODE_IDS.includes(c.modeId as ModeId)) p.push('modeId が不明');
+  if (c.kind !== undefined && !CRAFT_KINDS.includes(c.kind as string)) p.push('kind が不明');
+  return p;
+}
+
+/** ファイル全体として読めない問題（これがあると何も取り込まない） */
+function fatalProblems(x: unknown): string[] {
   if (!isObj(x)) return ['JSON のトップがオブジェクトではありません'];
+  const errs: string[] = [];
   if (x.schemaVersion !== '2.1') errs.push(`schemaVersion が "2.1" ではありません（${String(x.schemaVersion)}）`);
   if (!isObj(x.profile)) errs.push('profile がありません');
-  if (!Array.isArray(x.sessions)) return [...errs, 'sessions が配列ではありません'];
-  x.sessions.forEach((s, i) => {
-    if (errs.length > 20) return;
-    if (!isObj(s)) return void errs.push(`sessions[${i}] がオブジェクトではありません`);
-    if (typeof s.sessionId !== 'string') errs.push(`sessions[${i}].sessionId がありません`);
-    if (typeof s.startedAt !== 'string' || Number.isNaN(new Date(s.startedAt).getTime())) errs.push(`sessions[${i}].startedAt が日時ではありません`);
-    if (!Array.isArray(s.trials)) return void errs.push(`sessions[${i}].trials が配列ではありません`);
-    s.trials.forEach((t, j) => {
-      if (!isObj(t)) return void errs.push(`sessions[${i}].trials[${j}] が不正`);
-      if (typeof t.trialId !== 'string') errs.push(`sessions[${i}].trials[${j}].trialId がありません`);
-      if (!MODE_IDS.includes(t.modeId as ModeId)) errs.push(`sessions[${i}].trials[${j}].modeId が不明`);
-      const q = t.question;
-      if (!isObj(q) || typeof q.id !== 'string' || !TASKS.includes(q.taskType as TaskCategory) || !Array.isArray(q.operands))
-        errs.push(`sessions[${i}].trials[${j}].question が不正`);
-      if (!Array.isArray(t.events) || !t.events.every((e) => isObj(e) && typeof e.type === 'string' && typeof e.timestampMs === 'number'))
-        errs.push(`sessions[${i}].trials[${j}].events が不正`);
-    });
-  });
+  if (!Array.isArray(x.sessions)) errs.push('sessions が配列ではありません');
   if (x.craftBook !== undefined && !Array.isArray(x.craftBook)) errs.push('craftBook が配列ではありません');
   return errs;
+}
+
+/** 厳密な検証。項目の問題もすべて列挙する（取り込みは sanitizeAppData を使う） */
+export function validateAppData(x: unknown): string[] {
+  const errs = fatalProblems(x);
+  if (!isObj(x) || !Array.isArray(x.sessions)) return errs;
+  x.sessions.forEach((s, i) => {
+    if (errs.length > 20) return;
+    const sp = sessionProblems(s);
+    sp.forEach((m) => errs.push(`sessions[${i}].${m}`));
+    if (isObj(s) && Array.isArray(s.trials))
+      s.trials.forEach((t, j) => trialProblems(t).forEach((m) => errs.push(`sessions[${i}].trials[${j}].${m}`)));
+  });
+  if (Array.isArray(x.craftBook)) x.craftBook.forEach((c, i) => craftProblems(c).forEach((m) => errs.push(`craftBook[${i}].${m}`)));
+  if (isObj(x.profile)) {
+    cleanFields(x.profile.settings, SETTINGS_RULES).bad.forEach((k) => errs.push(`profile.settings.${k} が不正`));
+    cleanFields(x.profile.learning, LEARNING_RULES).bad.forEach((k) => errs.push(`profile.learning.${k} が不正`));
+  }
+  return errs;
+}
+
+export interface RejectedCounts {
+  /** 取り込まないセッション（自体が不正、または試行がすべて不正） */
+  sessions: number;
+  trials: number;
+  craft: number;
+  /** 不正で既定値に戻した設定のキー */
+  settingKeys: string[];
+}
+
+/** 項目単位で検証し、正常な項目だけの AppData を返す。ファイル全体が読めないときは data が null */
+export function sanitizeAppData(raw: unknown): { fatal: string[]; data: AppData | null; rejected: RejectedCounts } {
+  const rejected: RejectedCounts = { sessions: 0, trials: 0, craft: 0, settingKeys: [] };
+  const fatal = fatalProblems(raw);
+  if (fatal.length) return { fatal, data: null, rejected };
+  const d = raw as Record<string, unknown>;
+  const sessions: Session[] = [];
+  for (const s of d.sessions as unknown[]) {
+    if (sessionProblems(s).length) {
+      rejected.sessions++;
+      continue;
+    }
+    const src = s as unknown as Session;
+    const trials = src.trials.filter((t) => !trialProblems(t).length);
+    rejected.trials += src.trials.length - trials.length;
+    if (src.trials.length > 0 && trials.length === 0) {
+      rejected.sessions++;
+      continue;
+    }
+    sessions.push(trials.length === src.trials.length ? src : { ...src, trials });
+  }
+  const craftBook: CraftEntry[] = [];
+  for (const c of (d.craftBook as unknown[] | undefined) ?? []) {
+    if (craftProblems(c).length) rejected.craft++;
+    else craftBook.push(c as CraftEntry);
+  }
+  const prof = d.profile as Record<string, unknown>;
+  rejected.settingKeys = [...cleanFields(prof.settings, SETTINGS_RULES).bad, ...cleanFields(prof.learning, LEARNING_RULES).bad];
+  const profile = withDefaults(prof as unknown as Partial<AppData['profile']>);
+  return { fatal, data: { ...(d as unknown as AppData), profile, sessions, craftBook }, rejected };
 }
 
 export interface ImportPreview {
@@ -87,9 +240,24 @@ export interface ImportPreview {
   data: AppData | null;
   sessionCount: number;
   trialCount: number;
+  /** 既存データとの重複 */
   duplicateSessionIds: string[];
   duplicateTrialIds: string[];
+  /** ファイルの中での重複（マージでは最初の1件だけ取り込む） */
+  internalDuplicateSessionIds: string[];
+  internalDuplicateTrialIds: string[];
+  /** 項目単位で取り込まないもの */
+  rejected: RejectedCounts;
   migration?: MigrationReport;
+}
+
+const NO_REJECTED = (): RejectedCounts => ({ sessions: 0, trials: 0, craft: 0, settingKeys: [] });
+
+function duplicatesIn(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const dup = new Set<string>();
+  for (const id of ids) (seen.has(id) ? dup : seen).add(id);
+  return [...dup];
 }
 
 export function previewImport(text: string, current: AppData): ImportPreview {
@@ -97,42 +265,43 @@ export function previewImport(text: string, current: AppData): ImportPreview {
   try {
     raw = JSON.parse(text);
   } catch {
-    return { format: 'v2.1', errors: ['JSON として読み込めません'], data: null, sessionCount: 0, trialCount: 0, duplicateSessionIds: [], duplicateTrialIds: [] };
+    return { format: 'v2.1', errors: ['JSON として読み込めません'], data: null, sessionCount: 0, trialCount: 0, duplicateSessionIds: [], duplicateTrialIds: [], internalDuplicateSessionIds: [], internalDuplicateTrialIds: [], rejected: NO_REJECTED() };
   }
   let data: AppData | null = null;
   let format: 'v2.1' | 'v1' = 'v2.1';
   let errors: string[] = [];
   let migration: MigrationReport | undefined;
+  let rejected = NO_REJECTED();
   if (isObj(raw) && Array.isArray(raw.logs) && raw.schemaVersion === undefined) {
     format = 'v1';
-    const m = migrateV1(raw);
+    const m = migrateV1Checked(raw);
     errors = m.errors;
     migration = m.report;
-    data = m.errors.length ? null : m.data;
-  } else {
-    errors = validateAppData(raw);
-    if (!errors.length) {
-      const d = raw as unknown as AppData;
-      data = { ...d, profile: withDefaults(d.profile), craftBook: d.craftBook ?? [] };
+    if (!m.errors.length) {
+      data = m.data;
+      rejected = m.rejected;
     }
+  } else {
+    const r = sanitizeAppData(raw);
+    errors = r.fatal;
+    data = r.data;
+    rejected = r.rejected;
   }
   const existing = new Set(current.sessions.map((s) => s.sessionId));
   const existingTrials = new Set(current.sessions.flatMap((s) => s.trials.map((t) => t.trialId)));
-  const seenTrials = new Set<string>();
-  const dupTrials: string[] = [];
-  for (const s of data?.sessions ?? [])
-    for (const t of s.trials) {
-      if (seenTrials.has(t.trialId) || existingTrials.has(t.trialId)) dupTrials.push(t.trialId);
-      seenTrials.add(t.trialId);
-    }
+  const sessions = data?.sessions ?? [];
+  const trialIds = sessions.flatMap((s) => s.trials.map((t) => t.trialId));
   return {
     format,
     errors,
     data,
-    sessionCount: data?.sessions.length ?? 0,
-    trialCount: data?.sessions.reduce((n, s) => n + s.trials.length, 0) ?? 0,
-    duplicateSessionIds: (data?.sessions ?? []).filter((s) => existing.has(s.sessionId)).map((s) => s.sessionId),
-    duplicateTrialIds: dupTrials,
+    sessionCount: sessions.length,
+    trialCount: trialIds.length,
+    duplicateSessionIds: sessions.filter((s) => existing.has(s.sessionId)).map((s) => s.sessionId),
+    duplicateTrialIds: trialIds.filter((id) => existingTrials.has(id)),
+    internalDuplicateSessionIds: duplicatesIn(sessions.map((s) => s.sessionId)),
+    internalDuplicateTrialIds: duplicatesIn(trialIds),
+    rejected,
     migration,
   };
 }
@@ -140,7 +309,15 @@ export function previewImport(text: string, current: AppData): ImportPreview {
 /** 既存に無いセッションだけを足す。図鑑は (value, parts) で重複を除く */
 export function mergeData(current: AppData, incoming: AppData): AppData {
   const ids = new Set(current.sessions.map((s) => s.sessionId));
-  const sessions = [...current.sessions, ...incoming.sessions.filter((s) => !ids.has(s.sessionId))];
+  const sessions = [...current.sessions];
+  const seenTrials = new Set<string>();
+  for (const s of incoming.sessions) {
+    if (ids.has(s.sessionId)) continue;
+    ids.add(s.sessionId); // ファイル内で同じIDが続いても最初の1件だけ
+    // 試行IDもファイルの中では最初の1件だけ（既存データとの重複は従来どおり）
+    const trials = s.trials.filter((t) => !seenTrials.has(t.trialId) && !!seenTrials.add(t.trialId));
+    sessions.push(trials.length === s.trials.length ? s : { ...s, trials });
+  }
   sessions.sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
   return { ...current, sessions, craftBook: mergeCraft(current.craftBook ?? [], incoming.craftBook ?? []) };
 }
@@ -279,6 +456,21 @@ export function migrateV1(raw: Record<string, unknown>): { data: AppData; report
     craftBook: [],
   };
   return { data, report, errors };
+}
+
+/**
+ * v1 を移行し、v2.1 と同じ項目検証を通す。ファイル取り込みと起動時の自動移行の共通入口。
+ * 除外された試行は移行レポートの trialCount から引き、skipped に加える。
+ */
+export function migrateV1Checked(raw: Record<string, unknown>): { data: AppData; report: MigrationReport; errors: string[]; rejected: RejectedCounts } {
+  const m = migrateV1(raw);
+  if (m.errors.length) return { ...m, rejected: NO_REJECTED() };
+  const r = sanitizeAppData(m.data);
+  const data = r.data ?? m.data;
+  const kept = data.sessions.reduce((n, s) => n + s.trials.length, 0);
+  const dropped = m.report.trialCount - kept;
+  const report = { ...m.report, trialCount: kept, sessionCount: data.sessions.length, skipped: m.report.skipped + dropped };
+  return { data, report, errors: m.errors, rejected: r.rejected };
 }
 
 // ---------- CSV（§11.3: セッション・試行・イベントを別出力） ----------

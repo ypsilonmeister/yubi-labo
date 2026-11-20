@@ -3,7 +3,7 @@
 
 import { openDB, type IDBPDatabase } from 'idb';
 import type { AppData, CraftEntry, Session } from '../types';
-import { craftKey, emptyAppData, migrateV1, withDefaults, type MigrationReport } from './dataio';
+import { craftKey, emptyAppData, migrateV1Checked, withDefaults, type MigrationReport } from './dataio';
 
 const DB_NAME = 'math_craft_app_data_v2';
 const V1_KEY = 'math_craft_app_data_v1';
@@ -62,17 +62,26 @@ export class Store {
     }
     if (!raw) return;
     try {
-      const { data, report, errors } = migrateV1(JSON.parse(raw));
+      const { data, report, errors } = migrateV1Checked(JSON.parse(raw));
       if (errors.length) return;
       const ids = new Set(this.data.sessions.map((x) => x.sessionId));
       const tx = this.db.transaction('sessions', 'readwrite');
-      for (const s of data.sessions) if (!ids.has(s.sessionId)) await tx.store.put(s);
+      const added = data.sessions.filter((x) => !ids.has(x.sessionId));
+      for (const s of added) await tx.store.put(s);
       await tx.done;
-      this.data.sessions = [...this.data.sessions, ...data.sessions.filter((x) => !ids.has(x.sessionId))].sort(
+      this.data.sessions = [...this.data.sessions, ...added].sort(
         (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
       );
-      this.migrationReport = report;
-      await this.db.put('meta', report, 'migrationReport');
+      // 既存セッションとの ID 衝突で保存しなかった分は、実際に追加した件数に合わせて移行不可へ回す
+      const addedTrials = added.reduce((n, s) => n + s.trials.length, 0);
+      const final = {
+        ...report,
+        sessionCount: added.length,
+        trialCount: addedTrials,
+        skipped: report.skipped + (report.trialCount - addedTrials),
+      };
+      this.migrationReport = final;
+      await this.db.put('meta', final, 'migrationReport');
     } catch {
       // 壊れた v1 データは移行しない（既存データは触らない）
     }

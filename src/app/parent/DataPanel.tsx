@@ -94,6 +94,17 @@ export function DataPanel({ store }: { store: Store }) {
                 {preview.duplicateSessionIds.length > 0 && `／既にあるセッション ${preview.duplicateSessionIds.length}件`}
                 {preview.duplicateTrialIds.length > 0 && `／重複する試行ID ${preview.duplicateTrialIds.length}件`}
               </p>
+              {(preview.internalDuplicateSessionIds.length > 0 || preview.internalDuplicateTrialIds.length > 0) && (
+                <p className="p-note">
+                  ファイルの中で重複: セッションID {preview.internalDuplicateSessionIds.length}件・試行ID {preview.internalDuplicateTrialIds.length}件（追加するときは最初の1件だけ取り込みます）
+                </p>
+              )}
+              {(preview.rejected.sessions > 0 || preview.rejected.trials > 0 || preview.rejected.craft > 0 || preview.rejected.settingKeys.length > 0) && (
+                <p className="p-alert">
+                  形が正しくないため取り込まない項目: セッション {preview.rejected.sessions}件・試行 {preview.rejected.trials}件・図鑑 {preview.rejected.craft}件
+                  {preview.rejected.settingKeys.length > 0 && `／設定 ${preview.rejected.settingKeys.length}項目は初期値にします（${preview.rejected.settingKeys.join('、')}）`}
+                </p>
+              )}
               {preview.migration && (
                 <p className="p-note">
                   v1 からの移行: 記録 {preview.migration.logCount}件 → 試行 {preview.migration.trialCount}件（移行できない記録 {preview.migration.skipped}件、fatigueWarning {preview.migration.droppedFatigueWarnings}件は移行しません）
