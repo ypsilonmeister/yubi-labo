@@ -1598,3 +1598,149 @@ button:disabled {
   border-radius: 50%;
   background: var(--line);
 }
+
+/* ---------- v2.16 九九テストれんしゅう（§9.11） ---------- */
+
+.kuku {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.kuku-expression {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35em;
+  font-size: clamp(56px, 15vw, 120px);
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.kuku-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+  min-height: 80px;
+}
+
+.kuku-report {
+  min-width: 140px;
+  min-height: 72px;
+  font-size: 26px;
+}
+
+.kuku-sequence-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.kuku-sequence {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kuku-sequence li,
+.kuku-hint-row,
+.kuku-anchor {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kuku-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.kuku-chip.now {
+  border: 3px solid var(--ink);
+  background: var(--paper);
+}
+
+.kuku-step {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.kuku-step.big {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.kuku-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.kuku-hint-row {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.kuku-array {
+  max-width: 100%;
+  height: auto;
+}
+
+.kuku-setup-title {
+  margin: 0;
+  text-align: center;
+  font-size: 20px;
+}
+
+.kuku-dans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.kuku-forms {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.kuku-pick.on {
+  border: 3px solid var(--accent);
+  background: var(--soft);
+}
+
+.kuku-end {
+  align-self: center;
+  width: 100%;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+}

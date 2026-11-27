@@ -14,6 +14,7 @@ interface Field<K> {
 
 const A11Y: Field<keyof AccessibilitySettings>[] = [
   { key: 'soundEnabled', label: '音', help: '初期はOFF。ONでも成功時のやわらかい音だけで、間違いの音はありません。音なしで全課題が完了できます。', options: [[false, 'OFF'], [true, 'ON']] },
+  { key: 'readAloud', label: '九九の式の読み上げ', help: '初期はOFF。「音」がONで「静かなモード」がOFFのときだけ、九九テストれんしゅうの式を読み上げます（答えは読みません）。端末内の日本語の声だけを使い、その声がない端末では読み上げません。', options: [[false, 'OFF'], [true, 'ON']] },
   { key: 'quietMode', label: '静かなモード', help: '星などの演出と音を止め、演出を「おだやか」以下にします。', options: [[false, 'OFF'], [true, 'ON']] },
   { key: 'effectLevel', label: '成功演出の強さ', help: '正解が続いても強くなりません。', options: [['none', 'なし'], ['calm', 'おだやか（初期）'], ['normal', 'ふつう']] },
   { key: 'reducedMotion', label: '動きを減らす', help: 'OSの「視差効果を減らす」設定も反映します。動きの代わりに状態を1つずつ切り替えて見せます。', options: [[false, 'OFF'], [true, 'ON']] },

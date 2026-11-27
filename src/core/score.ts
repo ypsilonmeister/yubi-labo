@@ -46,10 +46,13 @@ export function isFirstTry(t: Pick<Trial, 'result'>): boolean {
   return !!r && r.outcome === 'completed' && r.assistanceLevel === 'independent' && r.mistakeCount === 0;
 }
 
+/** v2.16（§9.11）: 点を付けない課題。九九テストれんしゅう（M）は合計点・ランク・ラウンドに入れない */
+const isUnscored = (t: Pick<Trial, 'question'>) => t.question.taskType === 'kuku_rehearsal';
+
 /** 1問の点（v2.5。0以上） */
 export function trialPoints(t: Pick<Trial, 'question' | 'result' | 'events'>): number {
   const r = t.result;
-  if (!r) return 0;
+  if (!r || isUnscored(t)) return 0;
   if (r.outcome === 'explored') return t.question.learningStage === 'observe' && exploredToEnd(t) ? POINTS.observed : 0;
   if (r.outcome !== 'completed') return 0;
   const clean = r.mistakeCount === 0;
@@ -74,7 +77,7 @@ export function trialPoints(t: Pick<Trial, 'question' | 'result' | 'events'>): n
 /** v2.2〜v2.4 の1問の点 */
 export function trialPointsV1(t: Pick<Trial, 'question' | 'result' | 'events'>): number {
   const r = t.result;
-  if (!r) return 0;
+  if (!r || isUnscored(t)) return 0;
   if (r.outcome === 'explored') return t.question.learningStage === 'observe' && exploredToEnd(t) ? POINTS_V1.observed : 0;
   if (r.outcome !== 'completed') return 0;
   const p = r.assistanceLevel === 'independent' ? POINTS_V1.independent : r.assistanceLevel === 'after_hint' ? POINTS_V1.after_hint : r.assistanceLevel === 'after_demo' ? POINTS_V1.after_demo : POINTS_V1.tried;

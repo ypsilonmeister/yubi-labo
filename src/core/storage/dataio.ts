@@ -79,6 +79,7 @@ const SETTINGS_RULES: Rules = {
   directManipulation: isBool,
   rodGrid: isBool,
   numberLabels: isBool,
+  readAloud: isBool,
 };
 const LEARNING_RULES: Rules = {
   choiceCount: oneOf(2, 3, 4),

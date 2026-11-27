@@ -35,7 +35,9 @@ export type TaskCategory =
   // 実装拡張（v2.14・§9.9 発展図形）
   | 'shape_square'
   | 'shape_isosceles'
-  | 'shape_area';
+  | 'shape_area'
+  // 実装拡張（v2.16・§9.11 九九テストれんしゅう）
+  | 'kuku_rehearsal';
 
 export type ModeId =
   | 'mode_a_parity'
@@ -54,7 +56,9 @@ export type ModeId =
   // 実装拡張（v2.9・§9.9）
   | 'mode_k_shapemake'
   // 実装拡張（v2.10・§9.10）
-  | 'mode_l_arrays';
+  | 'mode_l_arrays'
+  // 実装拡張（v2.16・§9.11）
+  | 'mode_m_kuku';
 
 // 実装拡張: "construct"（本課題）。§9.0 の表で「本課題・transfer」とされる決定点を、
 // 初回の表現で行う段階として明示する。transfer / revisit は同じ決定点を別表現・別日に行う。
@@ -82,6 +86,20 @@ export interface Question {
    * 1回「半分を選ぶ」が1試行。列そのものは問題に詰めこまない。
    */
   chain?: QuestionChain;
+  /** 実装拡張（v2.16・§9.11）: 九九テストれんしゅうの、どの形式の何番目か */
+  rehearsal?: QuestionRehearsal;
+}
+
+/** のぼり（×1→×9）／くだり（×9→×1）／バラバラ（その段の9問）／ぜんぶの段 */
+export type KukuForm = 'up' | 'down' | 'shuffle' | 'mix';
+/** 「いえた／まだ」を押す人: 自己確認 / 親判定 */
+export type KukuJudge = 'self' | 'parent';
+
+export interface QuestionRehearsal {
+  runId: string;
+  form: KukuForm;
+  index: number; // 並びの何番目か（0 始まり）
+  judge: KukuJudge;
 }
 
 export interface QuestionChain {
@@ -110,6 +128,8 @@ export interface AccessibilitySettings {
   rodGrid: boolean;
   /** 実装拡張（v2.4・§20・本人の希望）: むれ・へや・手札に数字のふだを出す */
   numberLabels: boolean;
+  /** 実装拡張（v2.16・§9.11）: 九九の式を端末内の音声で読み上げる（初期OFF） */
+  readAloud: boolean;
 }
 
 // 実装拡張: 出題・分析まわりの保護者設定（AccessibilitySettings とは別に保存）
@@ -195,6 +215,11 @@ export interface GameModePlugin {
   pause(): void;
   resume(): void;
   applySettings(settings: Readonly<AccessibilitySettings>): void;
+  /**
+   * v2.16: 試行を完了せずに閉じた（とばした）ことをモードに知らせ、決定の操作を閉じてもらう。次の loadQuestion で元に戻る。
+   * 答えの確認が残るモードは、閉じたあとの画面に答えが出たら onAnswerShown を呼ぶ（出ていれば すぐに呼ぶ）。
+   */
+  closeTrial?(onAnswerShown?: () => void): void;
   destroy(): void;
 }
 

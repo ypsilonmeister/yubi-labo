@@ -5,6 +5,7 @@ import { canHalve, halfOf, halvingDistractors, HALVING_MAX, pickStart, START_MAX
 import { areaTargets, goalEdges, goalOperands, GOAL_OF_CODE, parseGoalOperands, solveShape, type ShapeGoal } from '../math/shapes';
 import { arrayAnswer, arrayDistractors, arrayPairs, isValidArrayOperands, SPLIT_MAX, FACTOR_MAX, type ArrayTask } from '../math/arrays';
 import { isValidTwoDigit, twoDigitAnswer, twoDigitDistractors, twoDigitPairs, TWO_DIGIT_MAX, type TwoDigitTask } from '../math/twodigit';
+import { allKukuPairs, isKukuPair, type KukuRun } from '../math/kuku';
 import { uid } from '../time';
 
 export const OPERATION_OF: Record<TaskCategory, Operation> = {
@@ -34,6 +35,7 @@ export const OPERATION_OF: Record<TaskCategory, Operation> = {
   shape_square: 'draw',
   shape_isosceles: 'draw',
   shape_area: 'draw',
+  kuku_rehearsal: 'multiply',
 };
 
 /** v2.11 2けたの繰り上がり・繰り下がり（§9.3 の拡張）の課題か */
@@ -108,6 +110,9 @@ export function expectedValueOf(task: TaskCategory, operands: number[]): number 
     case 'borrow_2d2':
       // v2.11: 決定点の答えは「ぜんぶで いくつ」
       return twoDigitAnswer(task, operands);
+    case 'kuku_rehearsal':
+      // v2.16: operands は [段, かける数]
+      return operands[0] * operands[1];
   }
 }
 
@@ -157,6 +162,8 @@ export function decisionValue(q: Pick<Question, 'taskType' | 'operands' | 'learn
     case 'carry_2d2':
     case 'borrow_2d2':
       return twoDigitAnswer(q.taskType, q.operands);
+    case 'kuku_rehearsal':
+      return a * b;
   }
 }
 
@@ -171,6 +178,8 @@ export function distractorsFor(q: Pick<Question, 'taskType' | 'operands' | 'lear
   if (q.taskType === 'halving') return halvingDistractors(q.operands[0], count, rng);
   // v2.9: かたちづくりは、選択肢ではなく「つくる」決定点（ダミーなし）
   if (isShapeGoalTask(q.taskType)) return [];
+  // v2.16: 九九テストれんしゅうは声で答える（選択肢なし）
+  if (q.taskType === 'kuku_rehearsal') return [];
   // v2.10: かけわりは、理由のある間違い（たした・1列ずれた・のこりを かけわすれた など）を候補にする（§9.10）
   if (isArrayTask(q.taskType)) return arrayDistractors(q.taskType, q.operands, count, rng);
   // v2.11: 2けたは、くりあがりを わすれた・ひらいた 10を へらしわすれた などの理由のある間違い（§9.3）
@@ -235,6 +244,8 @@ function candidateOperands(task: TaskCategory, learning: Readonly<LearningSettin
     case 'carry_2d2':
     case 'borrow_2d2':
       return twoDigitPairs(task);
+    case 'kuku_rehearsal':
+      return allKukuPairs();
   }
 }
 
@@ -272,6 +283,7 @@ const DIFFICULTY: Record<TaskCategory, number> = {
   shape_square: 3,
   shape_isosceles: 4,
   shape_area: 4,
+  kuku_rehearsal: 0, // 点も難しさの段階も付けない
 };
 
 export interface GenerateOptions {
@@ -330,6 +342,13 @@ export function buildQuestion(
     variantId,
     learningStage: stage,
   };
+}
+
+// ---------- v2.16 九九テストれんしゅう（§9.11）: えらんだ並びの index 番目 ----------
+
+export function kukuQuestion(run: KukuRun, index: number, settings: Readonly<AccessibilitySettings>, learning: Readonly<LearningSettings>): Question {
+  const q = buildQuestion('kuku_rehearsal', [...run.order[index]], 'mode_m_kuku', 'construct', settings, learning);
+  return { ...q, variantId: `kuku/${run.form}`, rehearsal: { runId: run.id, form: run.form, index, judge: run.judge } };
 }
 
 // ---------- v2.7 はんぶんチャレンジ（§22）: 連続する問題 ----------
@@ -458,6 +477,11 @@ export function validateQuestion(q: Question): string[] {
     else if (!solveShape(g.goal, g.edge, g.n)) errs.push('かたちづくり: 最初の1辺から作れる見本の形がない');
     return errs;
   }
+  if (q.taskType === 'kuku_rehearsal') {
+    if (!isKukuPair(q.operands)) errs.push('九九: [段, かける数] はどちらも 1〜9');
+    if (q.distractors.length) errs.push('九九: 選択肢は使わない');
+    return errs;
+  }
   if (isArrayTask(q.taskType) && !isValidArrayOperands(q.taskType, q.operands)) errs.push('かけわり: 行・列が範囲外か、割り切れない');
   if (isTwoDigitTask(q.taskType) && !isValidTwoDigit(q.taskType, q.operands)) errs.push('2けた: 一の位で くりあがり／くりさがりがない、または答えが範囲外');
   if (q.taskType === 'balance' && !(a >= 6 && a <= 18 && b >= 1 && b <= 9 && a - b >= 1 && a - b <= 9)) errs.push('釣り合いの範囲外（左6〜18、右1〜9、足す重り1〜9）');
@@ -480,6 +504,8 @@ export function valueRange(task: TaskCategory): { min: number; max: number } {
   if (isArrayTask(task)) return { min: 2, max: SPLIT_MAX * FACTOR_MAX };
   // v2.11: 2けたは 99 まで（100 は Phase 5）
   if (isTwoDigitTask(task)) return { min: 1, max: TWO_DIGIT_MAX };
+  // v2.16: 九九の答えは 81 まで
+  if (task === 'kuku_rehearsal') return { min: 1, max: 81 };
   return { min: 0, max: 20 };
 }
 

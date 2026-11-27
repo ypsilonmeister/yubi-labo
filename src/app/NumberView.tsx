@@ -96,6 +96,9 @@ function lines(q: Question, revealed: boolean, s: Readonly<AccessibilitySettings
       const rest = b - 10;
       return [`10 × ${a} = ${10 * a}`, `${rest} × ${a} = ${rest * a}`, `${10 * a} + ${rest * a} = ${a * b}`, `${b} × ${a} = ${a * b}`];
     }
+    case 'kuku_rehearsal':
+      // v2.16: M では「かずで みる」を出さない（式は画面に出ている）
+      return [`${a} × ${b} = ${revealed ? a * b : '？'}`];
     case 'halving': {
       // v2.7: 出題中は「〜の はんぶん は ？」だけ。答えは試行が終わってから
       if (!revealed) return [`${a} の はんぶん は ？`];

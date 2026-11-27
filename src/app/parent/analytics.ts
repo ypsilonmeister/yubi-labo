@@ -5,6 +5,7 @@
 import type { AppData, LearningStage, ModeId, Session, TaskCategory, TimeOfDay, Trial } from '../../core/types';
 import { computeMetrics, median, type TrialMetrics } from '../../core/engine/metrics';
 import { jstDateKey } from '../../core/time';
+import { kukuHinted, kukuReportOf } from '../../core/math/kuku';
 
 /** 決定点のある段階（explore・observe は成績に入れない §7.3） */
 export const GRADED_STAGES: LearningStage[] = ['predict', 'construct', 'transfer', 'revisit'];
@@ -28,7 +29,9 @@ export function allRows(data: AppData, idleMs: number): Row[] {
   return out.sort((a, b) => a.at - b.at);
 }
 
-export const isGraded = (r: Row) => GRADED_STAGES.includes(r.trial.question.learningStage) && r.trial.result?.outcome !== 'explored';
+/** v2.16: 九九テストれんしゅうは自己申告・親判定なので、機械が判定した成績には混ぜない（kukuStuck で別に見る） */
+export const isGraded = (r: Row) =>
+  r.trial.question.taskType !== 'kuku_rehearsal' && GRADED_STAGES.includes(r.trial.question.learningStage) && r.trial.result?.outcome !== 'explored';
 
 export interface Agg {
   /** 完了した試行（決定まで行った） */
@@ -172,6 +175,9 @@ export function heatAxis(task: TaskCategory, synthesisMax: number): HeatAxis {
     case 'array_divide':
       // v2.10: operands は [ぜんぶの数, 行]。表にせず、課題別の集計表で見る
       return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };
+    case 'kuku_rehearsal':
+      // v2.16: 九九の表で式単位に見る
+      return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };
     case 'halving':
       // v2.7: 出発値が 281 通りあり、表にならない（課題別の集計表で見る）
       return { rows: [], cols: null, rowLabel: '', colLabel: '', valid: () => false, key: (a) => `${a}` };
@@ -200,6 +206,50 @@ export function heatCells(rows: Row[], task: TaskCategory): Map<string, Agg> {
   const out = new Map<string, Agg>();
   for (const [k, rs] of by) out.set(k, aggregate(rs));
   return out;
+}
+
+// ---------- v2.16 九九テストれんしゅう: 詰まった式（§11.3） ----------
+
+export interface KukuStuck {
+  dan: number;
+  multiplier: number;
+  /** 「まだ」の回数 */
+  notYet: number;
+  /** そのうち親判定 */
+  notYetByParent: number;
+  /** 答えを見る前にヒントを使った回数 */
+  hinted: number;
+  /** 「いえた／まだ」を押した回数 */
+  reported: number;
+  /** 「まだ」かヒントが最後に付いた日 */
+  lastDay: string;
+}
+
+/**
+ * 「まだ」の申告とヒント使用だけから、式ごとに数える。反応時間は使わない。
+ * どちらも一度もない式は出さない。保護者画面だけで使う。
+ */
+export function kukuStuck(rows: Row[]): KukuStuck[] {
+  const by = new Map<string, KukuStuck>();
+  for (const r of rows) {
+    if (r.trial.question.taskType !== 'kuku_rehearsal') continue;
+    const [dan, multiplier] = r.trial.question.operands;
+    const key = `${dan},${multiplier}`;
+    const x = by.get(key) ?? { dan, multiplier, notYet: 0, notYetByParent: 0, hinted: 0, reported: 0, lastDay: '' };
+    by.set(key, x);
+    const report = kukuReportOf(r.trial);
+    const hinted = kukuHinted(r.trial);
+    if (report) x.reported++;
+    if (report && !report.said) {
+      x.notYet++;
+      if (report.judgedBy === 'parent') x.notYetByParent++;
+    }
+    if (hinted) x.hinted++;
+    if (hinted || (report && !report.said)) x.lastDay = r.day > x.lastDay ? r.day : x.lastDay;
+  }
+  return [...by.values()]
+    .filter((x) => x.notYet > 0 || x.hinted > 0)
+    .sort((a, b) => b.notYet - a.notYet || b.hinted - a.hinted || a.dan - b.dan || a.multiplier - b.multiplier);
 }
 
 /** 単色（青）の順序スケール。明るい＝0、濃い＝1（参照パレットの sequential blue） */

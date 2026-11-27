@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { Store } from '../core/storage/db';
 import { SessionEngine } from '../core/engine/SessionEngine';
 import type { PickContext } from '../core/engine/questions';
-import type { AppData, CraftKind, LearningStage, ModeId, TaskCategory } from '../core/types';
+import type { AppData, CraftKind, KukuForm, KukuJudge, LearningStage, ModeId, TaskCategory } from '../core/types';
+import { newKukuRun } from '../core/math/kuku';
 import { stepsOf } from '../core/engine/progression';
 import { isoWithOffset, jstDateKey } from '../core/time';
 import { HomeScreen, ModeScreen, RankingScreen, StartScreen } from './screens/HomeScreens';
@@ -14,6 +15,7 @@ import { uid } from '../core/time';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PlayScreen, type PlaySpec } from './screens/PlayScreen';
 import { CraftBookScreen } from './screens/CraftBookScreen';
+import { KukuSetupScreen } from './screens/KukuSetupScreen';
 import { EndScreen } from './screens/EndScreen';
 import { ParentGate } from './ParentGate';
 import { ParentScreen } from './parent/ParentScreen';
@@ -23,6 +25,7 @@ type Screen =
   | { name: 'start' }
   | { name: 'home' }
   | { name: 'mode'; mode: ModeId }
+  | { name: 'kuku'; dan?: number }
   | { name: 'play'; spec: PlaySpec; key: number }
   | { name: 'craft' }
   | { name: 'ranking' }
@@ -75,11 +78,21 @@ function Loaded({ store }: { store: Store }) {
   const play = (spec: PlaySpec) => setScreen({ name: 'play', spec, key: ++playKey.current });
   /** v2.2: ホームでモードをタップしたら、おまかせ進行ですぐ始める（点が有効ならラウンドで） */
   const startMode = (mode: ModeId) => {
+    // v2.16: 九九テストれんしゅうは、段と形式を本人が選ぶ（おまかせ進行・ラウンドには混ぜない）
+    if (mode === 'mode_m_kuku') return setScreen({ name: 'kuku' });
     if (learning.freeChoice) return setScreen({ name: 'mode', mode });
     const plugin = GameRegistry.get(mode);
     // 決定点のない「じっけんラボ」は、自由探索（サンドボックス）としてすぐ始める
     if (!stepsOf(plugin).length) return play({ mode, task: plugin.supportedTasks[0], stage: 'explore' });
     play(newRoundSpec({ mode, task: plugin.supportedTasks[0], stage: 'construct', auto: true }));
+  };
+  const [kukuJudge, setKukuJudge] = useState<KukuJudge>('self');
+  const startKuku = (form: KukuForm, dan: number) =>
+    play({ mode: 'mode_m_kuku', task: 'kuku_rehearsal', stage: 'construct', kuku: newKukuRun({ id: uid('k-'), form, dan, judge: kukuJudge }) });
+  /** 遊ぶ画面から戻る先 */
+  const backFrom = (spec: PlaySpec): Screen => {
+    if (spec.kuku) return { name: 'kuku', dan: spec.kuku.form === 'mix' ? undefined : spec.kuku.dan };
+    return learning.freeChoice ? { name: 'mode', mode: spec.mode } : { name: 'home' };
   };
   const newRoundSpec = (spec: PlaySpec): PlaySpec => ({
     ...spec,
@@ -144,8 +157,11 @@ function Loaded({ store }: { store: Store }) {
           onPlay={(task: TaskCategory, stage: LearningStage) => play(stage === 'explore' ? { mode: screen.mode, task, stage } : newRoundSpec({ mode: screen.mode, task, stage }))}
         />
       )}
+      {screen.name === 'kuku' && (
+        <KukuSetupScreen s={settings} judge={kukuJudge} onJudge={setKukuJudge} onStart={startKuku} onBack={() => setScreen({ name: 'home' })} initialDan={screen.dan} />
+      )}
       {screen.name === 'play' && (
-        <ErrorBoundary key={screen.key} onBack={() => setScreen(learning.freeChoice ? { name: 'mode', mode: screen.spec.mode } : { name: 'home' })}>
+        <ErrorBoundary key={screen.key} onBack={() => setScreen(backFrom(screen.spec))}>
         <PlayScreen
           key={screen.key}
           spec={screen.spec}
@@ -160,7 +176,7 @@ function Loaded({ store }: { store: Store }) {
           rankingOf={rankingOf}
           onNewRound={(spec) => play(newRoundSpec(spec))}
           onCraft={onCraft}
-          onExit={() => setScreen(learning.freeChoice ? { name: 'mode', mode: screen.spec.mode } : { name: 'home' })}
+          onExit={() => setScreen(backFrom(screen.spec))}
           onTransfer={play}
         />
         </ErrorBoundary>

@@ -12,11 +12,13 @@ import { Plant } from '../Plant';
 import { RankingList } from './HomeScreens';
 import { GameRegistry } from '../../core/registry';
 import type { SessionEngine, TrialHandle } from '../../core/engine/SessionEngine';
-import { continuationsOf, exploreQuestion, generateQuestion, retarget, type PickContext } from '../../core/engine/questions';
+import { continuationsOf, exploreQuestion, generateQuestion, kukuQuestion, retarget, type PickContext } from '../../core/engine/questions';
+import { newKukuRun, nextKukuPosition, type KukuRun } from '../../core/math/kuku';
+import { uid } from '../../core/time';
 import { MODE_ERROR_EVENT } from '../ErrorBoundary';
 import { NumberView } from '../NumberView';
 import { ModeIcon } from '../icons';
-import { STAGE_LABEL, taskLabel } from '../labels';
+import { KUKU_FORM_LABEL, STAGE_LABEL, taskLabel } from '../labels';
 
 export interface PlaySpec {
   mode: ModeId;
@@ -28,6 +30,8 @@ export interface PlaySpec {
   auto?: boolean;
   /** v2.2: ラウンド（数問ひとまとまり） */
   round?: { id: string; length: number };
+  /** v2.16: 九九テストれんしゅう（M）でえらんだ段と形式の並び */
+  kuku?: KukuRun;
 }
 
 interface Props {
@@ -61,6 +65,8 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   learningRef.current = learning;
   const [question, setQuestion] = useState<Question | null>(null);
   const [done, setDone] = useState<Trial | null>(null);
+  // v2.16: とばしたあとに答えが開いている試行（M はこれがないと次の式へ進めない）
+  const [answerShownFor, setAnswerShownFor] = useState<string | null>(null);
   const [hintLevel, setHintLevel] = useState(0);
   const [paused, setPaused] = useState(false);
   const [showNumbers, setShowNumbers] = useState(false);
@@ -68,6 +74,8 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   const [showResult, setShowResult] = useState(false);
   // モード側（別ルート）で描画例外が起きたら、外側の ErrorBoundary に渡すために描画中に投げ直す
   const [modeCrashed, setModeCrashed] = useState(false);
+  // v2.16: M の並び（ぜんぶの段は81問ごとに並べなおす）
+  const kukuRun = useRef(spec.kuku);
   // ラウンドの結果で「まえの ランク」と比べるため、始めたときの合計点を覚えておく
   const pointsAtStart = useRef<number>(totalPoints());
 
@@ -108,6 +116,12 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
     plugin.loadQuestion(q);
   };
 
+  // v2.16: M はえらんだ並びのとおりに進む（おまかせ進行には混ぜない）
+  const loadKuku = (run: KukuRun, index: number) => {
+    kukuRun.current = run;
+    load(kukuQuestion(run, index, settingsRef.current, learningRef.current));
+  };
+
   // プラグインには「いまの試行」へ中継する context を一度だけ渡す
   useEffect(() => {
     const relay: GameContext = {
@@ -128,7 +142,8 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
     const onModeError = () => setModeCrashed(true);
     hostEl.addEventListener(MODE_ERROR_EVENT, onModeError);
     plugin.mount(hostEl, relay);
-    load(spec.question ?? newQuestion(spec.stage));
+    if (spec.kuku) loadKuku(spec.kuku, 0);
+    else load(spec.question ?? newQuestion(spec.stage));
     return () => {
       hostEl.removeEventListener(MODE_ERROR_EVENT, onModeError);
       handle.current?.close('abandoned');
@@ -144,9 +159,11 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
     plugin.applySettings(settings);
   }, [plugin, settings]);
 
+  // v2.16: M のヒントは1段（手がかりの数と図）
+  const maxHint = spec.kuku ? 1 : 3;
   const hint = () => {
     if (!handle.current || handle.current.isDone()) return;
-    const lvl = Math.min(3, hintLevel + 1) as 1 | 2 | 3;
+    const lvl = Math.min(maxHint, hintLevel + 1) as 1 | 2 | 3;
     setHintLevel(lvl);
     engine.emitShell({ type: 'hint_requested', payload: { level: lvl } });
     plugin.showHint(lvl);
@@ -163,7 +180,9 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   };
   const skip = () => {
     if (paused) togglePause();
+    const trialId = handle.current?.trial.trialId ?? null;
     handle.current?.close('skipped');
+    plugin.closeTrial?.(() => setAnswerShownFor(trialId));
   };
   const toggleNumbers = () => {
     engine.emitShell({ type: 'settings_changed', payload: { numberView: !showNumbers } });
@@ -195,6 +214,11 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   const conts = useMemo(() => (done ? continuationsOf(done, learningRef.current) : null), [done]);
   const chained = !!conts;
 
+  const rehearsal = spec.kuku ? question?.rehearsal : undefined;
+  const kukuNext = done && rehearsal && kukuRun.current ? () => nextKukuPosition(kukuRun.current!, rehearsal.index) : null;
+  const kukuEnded = !!kukuNext && kukuRun.current!.form !== 'mix' && rehearsal!.index + 1 >= kukuRun.current!.order.length;
+  const kukuTitle = spec.kuku ? (spec.kuku.form === 'mix' ? KUKU_FORM_LABEL.mix : `${spec.kuku.dan}の だん・${KUKU_FORM_LABEL[spec.kuku.form]}`) : null;
+
   if (modeCrashed) throw new Error('mode render failed');
 
   return (
@@ -205,7 +229,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
         </button>
         <div className="play-title">
           <ModeIcon mode={spec.mode} s={settings} size={36} />
-          <span>{stage === 'explore' ? STAGE_LABEL.explore : `${taskLabel(task, spec.mode)}・${STAGE_LABEL[stage]}`}</span>
+          <span>{kukuTitle ?? (stage === 'explore' ? STAGE_LABEL.explore : `${taskLabel(task, spec.mode)}・${STAGE_LABEL[stage]}`)}</span>
         </div>
         {spec.round && (
           <div className="round-meter" aria-label={`${roundTrials.length} もんめ / ${spec.round.length} もん、${roundPoints} てん`}>
@@ -239,7 +263,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
             <small>もどす</small>
           </button>
           {decisionStage && (
-            <button type="button" className="ctl" onClick={hint} disabled={!trialOpen || hintLevel >= 3}>
+            <button type="button" className="ctl" onClick={hint} disabled={!trialOpen || hintLevel >= maxHint}>
               <span aria-hidden>💡</span>
               <small>ヒント</small>
             </button>
@@ -248,7 +272,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
             <span aria-hidden>{paused ? '▶' : '⏸'}</span>
             <small>{paused ? 'つづける' : 'とめる'}</small>
           </button>
-          {settings.showEquationOnRequest && spec.stage !== 'explore' && (
+          {settings.showEquationOnRequest && spec.stage !== 'explore' && !spec.kuku && (
             <button type="button" className="ctl" onClick={toggleNumbers} aria-pressed={showNumbers}>
               <span aria-hidden>🔢</span>
               <small>かずで みる</small>
@@ -272,6 +296,10 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
             <span className="points-chip practice">れんしゅう できたね</span>
           )}
           {spec.round && lastTenths > 0 && <PointsChip tenths={lastTenths} firstTry={!!done && isFirstTry(done) && !lastScored?.easier} />}
+          {kukuEnded && (
+            // v2.16: 段の終わりは静かな表示だけ（点数・合否・順位は出さない）
+            <span className="kuku-end">{kukuRun.current!.dan}の だん は ここまで</span>
+          )}
           {question && !roundOver && (
             <button
               type="button"
@@ -287,6 +315,17 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
             <button type="button" className="btn-main" onClick={() => setShowResult(true)}>
               けっかを みる
             </button>
+          ) : kukuNext ? (
+            <KukuNextButton
+              done={done}
+              answerShown={answerShownFor === done.trialId}
+              ended={kukuEnded}
+              onNext={() => {
+                if (kukuEnded) return loadKuku(newKukuRun({ ...kukuRun.current!, id: uid('k-') }), 0);
+                const n = kukuNext();
+                if (n) loadKuku(n.run, n.index);
+              }}
+            />
           ) : chained ? (
             conts!.map((c) =>
               c.key === 'more' && c.question ? (
@@ -337,6 +376,19 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
         />
       )}
     </div>
+  );
+}
+
+/**
+ * v2.16: M の次へ進むボタン（段の終わりでは「はじめから」）。答えを見るまで出さない（§9.11）。
+ * 申告で終わった式は答えを見たあと。とばした式は、答えが開いているときだけ。
+ */
+export function KukuNextButton({ done, answerShown, ended, onNext }: { done: Trial; answerShown: boolean; ended: boolean; onNext: () => void }) {
+  if (done.result?.outcome === 'skipped' && !answerShown) return null;
+  return (
+    <button type="button" className={ended ? 'btn-soft' : 'btn-main'} onClick={onNext}>
+      {ended ? 'はじめから' : 'つぎへ'}
+    </button>
   );
 }
 
