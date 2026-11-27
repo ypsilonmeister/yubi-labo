@@ -12,6 +12,7 @@ import { HalvingMode } from './halving/HalvingMode';
 import { GeoboardMode } from './geoboard/GeoboardMode';
 import { ShapeMakeMode } from './geoboard/ShapeMakeMode';
 import { ArraysMode } from './arrays/ArraysMode';
+import { KukuMode } from './kuku/KukuMode';
 
 let done = false;
 export function registerModes() {
@@ -34,4 +35,6 @@ export function registerModes() {
   GameRegistry.register(ShapeMakeMode);
   // v2.10 タイルの かけわり（§9.10）
   GameRegistry.register(ArraysMode);
+  // v2.16 九九テストれんしゅう（§9.11）
+  GameRegistry.register(KukuMode);
 }

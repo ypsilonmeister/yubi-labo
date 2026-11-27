@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   directManipulation: true,
   rodGrid: true,
   numberLabels: true,
+  readAloud: false, // v2.16: 読み上げは初期OFF
 };
 
 export const DEFAULT_LEARNING: LearningSettings = {

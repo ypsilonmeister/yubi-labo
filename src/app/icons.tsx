@@ -46,6 +46,7 @@ export function ModeIcon({ mode, s, size = 96 }: { mode: ModeId; s: S; size?: nu
       {mode === 'mode_j_geoboard' && <GeoboardIcon />}
       {mode === 'mode_k_shapemake' && <GeoboardIcon triangle />}
       {mode === 'mode_l_arrays' && <ArraysIcon kind="split" />}
+      {mode === 'mode_m_kuku' && <KukuIcon />}
       {(mode === 'mode_e_tiles' || mode === 'mode_f_seesaw' || mode === 'mode_g_doubling' || mode === 'mode_h_trains') && <LabIcon mode={mode} c={c} />}
       {mode === 'mode_d_exchange' && (
         <>
@@ -158,6 +159,18 @@ function ArraysIcon({ kind }: { kind: 'multiply' | 'divide' | 'split' }) {
   );
 }
 
+/** v2.16 九九テストれんしゅう: 式のカード */
+function KukuIcon() {
+  return (
+    <g>
+      <rect x={10} y={24} width={80} height={52} rx={8} fill="#f6f1e6" stroke={OUTLINE} strokeWidth={2} />
+      <text x={50} y={61} textAnchor="middle" fontSize={30} fontWeight={800} fill="#3a3226">
+        くく
+      </text>
+    </g>
+  );
+}
+
 /** v2.3 じっけんラボのアイコン */
 function LabIcon({ mode, c }: { mode: ModeId; c: (n: number) => string }) {
   if (mode === 'mode_e_tiles')
@@ -265,6 +278,7 @@ export function TaskIcon({ task, s, size = 72 }: { task: TaskCategory; s: S; siz
       {task === 'array_multiply' && <ArraysIcon kind="multiply" />}
       {(task === 'array_divide' || task === 'array_divide_rem') && <ArraysIcon kind="divide" />}
       {task === 'array_split' && <ArraysIcon kind="split" />}
+      {task === 'kuku_rehearsal' && <KukuIcon />}
       {task === 'borrow' && (
         <>
           <g transform="translate(4 18)">

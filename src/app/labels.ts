@@ -1,4 +1,4 @@
-import type { LearningStage, ModeId, TaskCategory } from '../core/types';
+import type { KukuForm, LearningStage, ModeId, TaskCategory } from '../core/types';
 
 // 子ども向けの表示名（ひらがな）。事実の描写だけにする（§8.2）
 export const TASK_LABEL: Record<TaskCategory, string> = {
@@ -28,6 +28,15 @@ export const TASK_LABEL: Record<TaskCategory, string> = {
   shape_square: 'せいほうけい',
   shape_isosceles: 'にとうへん さんかく',
   shape_area: 'ひろさ',
+  kuku_rehearsal: 'くく',
+};
+
+// v2.16（§9.11）九九テストれんしゅうの形式
+export const KUKU_FORM_LABEL: Record<KukuForm, string> = {
+  up: 'のぼり',
+  down: 'くだり',
+  shuffle: 'バラバラ',
+  mix: 'ぜんぶの だん まぜて',
 };
 
 export function taskLabel(task: TaskCategory, mode: ModeId): string {
@@ -73,6 +82,7 @@ export const TASK_LABEL_PARENT: Record<TaskCategory, string> = {
   shape_square: '正方形をつくる',
   shape_isosceles: '二等辺三角形をつくる',
   shape_area: '面積（ますの数）の形をつくる',
+  kuku_rehearsal: '九九テストれんしゅう（自己確認・親判定）',
 };
 
 export const MODE_LABEL_PARENT: Record<ModeId, string> = {
@@ -88,6 +98,7 @@ export const MODE_LABEL_PARENT: Record<ModeId, string> = {
   mode_j_geoboard: 'J ジオボード',
   mode_k_shapemake: 'K かたちづくり',
   mode_l_arrays: 'L タイルの かけわり',
+  mode_m_kuku: 'M 九九テストれんしゅう',
 };
 
 export const STAGE_LABEL_PARENT: Record<LearningStage, string> = {

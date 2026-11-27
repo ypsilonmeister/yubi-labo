@@ -8,15 +8,17 @@ import { GameRegistry } from '../../core/registry';
 import { TASKS } from '../../core/storage/dataio';
 import { formatJst, isoWithOffset, jstDateKey, TIME_OF_DAY_LABEL } from '../../core/time';
 import { MODE_LABEL_PARENT, STAGE_LABEL_PARENT, TASK_LABEL_PARENT } from '../labels';
-import { aggregate, allRows, dayRotation, heatAxis, heatCells, isGraded, preference, SEQ_STEPS, seqColor, transferStats, type Agg, type Row } from './analytics';
+import { aggregate, allRows, dayRotation, heatAxis, heatCells, isGraded, kukuStuck, preference, SEQ_STEPS, seqColor, transferStats, type Agg, type Row } from './analytics';
+import { kukuReportOf } from '../../core/math/kuku';
 import { SettingsPanel } from './SettingsPanel';
 import { DataPanel } from './DataPanel';
 
-type Tab = 'overview' | 'compare' | 'heatmap' | 'history' | 'settings' | 'data';
+type Tab = 'overview' | 'compare' | 'heatmap' | 'kuku' | 'history' | 'settings' | 'data';
 const TABS: [Tab, string][] = [
   ['overview', '概要'],
   ['compare', 'モード比較'],
   ['heatmap', '組み合わせ別'],
+  ['kuku', '九九'],
   ['history', '履歴・観察メモ'],
   ['settings', '設定'],
   ['data', 'データ'],
@@ -55,6 +57,7 @@ export function ParentScreen({ store, onSaveProfile, onEndSession, sessionOpen, 
         {tab === 'overview' && <Overview store={store} rows={rows} sessionOpen={sessionOpen} onEndSession={onEndSession} />}
         {tab === 'compare' && <Compare rows={rows} store={store} />}
         {tab === 'heatmap' && <Heatmap rows={rows} store={store} />}
+        {tab === 'kuku' && <Kuku rows={rows} />}
         {tab === 'history' && <History store={store} />}
         {tab === 'settings' && <SettingsPanel profile={data.profile} onSave={onSaveProfile} />}
         {tab === 'data' && <DataPanel store={store} />}
@@ -62,6 +65,9 @@ export function ParentScreen({ store, onSaveProfile, onEndSession, sessionOpen, 
     </div>
   );
 }
+
+/** v2.16: 九九は自己申告・親判定なので、機械判定の比較表・組み合わせ表には出さない */
+const GRADED_TASKS = TASKS.filter((t) => t !== 'kuku_rehearsal');
 
 const pct = (x: number, n: number) => (n ? `${Math.round((100 * x) / n)}%` : '—');
 const sec = (ms: number | null) => (ms === null ? '—' : `${(ms / 1000).toFixed(1)}秒`);
@@ -253,7 +259,7 @@ function Compare({ rows, store }: { rows: Row[]; store: Store }) {
             </tr>
           </thead>
           <tbody>
-            {TASKS.flatMap((task) =>
+            {GRADED_TASKS.flatMap((task) =>
               plugins
                 .filter((p) => p.supportedTasks.includes(task))
                 .map((p) => {
@@ -314,7 +320,7 @@ function Heatmap({ rows, store }: { rows: Row[]; store: Store }) {
         <label>
           課題
           <select value={task} onChange={(e) => setTask(e.target.value as TaskCategory)}>
-            {TASKS.map((t) => (
+            {GRADED_TASKS.map((t) => (
               <option key={t} value={t}>
                 {TASK_LABEL_PARENT[t]}
               </option>
@@ -379,6 +385,52 @@ function Heatmap({ rows, store }: { rows: Row[]; store: Store }) {
   );
 }
 
+// ---------- v2.16 九九テストれんしゅう（§11.3） ----------
+
+function Kuku({ rows }: { rows: Row[] }) {
+  const list = kukuStuck(rows);
+  return (
+    <section className="p-section">
+      <h3>「まだ」やヒントが付いた式</h3>
+      <p className="p-note">
+        「まだ」の申告と、答えを見る前のヒント使用だけを式ごとに数えています。反応時間は使いません。正誤は機械の判定ではなく、自己確認か親判定の申告です。この表は子どもの画面には出ません。
+      </p>
+      {!list.length ? (
+        <p>該当する記録はありません。</p>
+      ) : (
+        <div className="p-scroll">
+          <table className="p-table">
+            <thead>
+              <tr>
+                <th>式</th>
+                <th>「まだ」</th>
+                <th>うち親判定</th>
+                <th>ヒント</th>
+                <th>申告した回数</th>
+                <th>最後に付いた日</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((x) => (
+                <tr key={`${x.dan}-${x.multiplier}`}>
+                  <td>
+                    {x.dan} × {x.multiplier}
+                  </td>
+                  <td>{x.notYet}</td>
+                  <td>{x.notYetByParent}</td>
+                  <td>{x.hinted}</td>
+                  <td>{x.reported}</td>
+                  <td>{x.lastDay}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ---------- 履歴・観察メモ ----------
 
 const END_REASON: Record<NonNullable<Session['endReason']>, string> = {
@@ -389,6 +441,13 @@ const END_REASON: Record<NonNullable<Session['endReason']>, string> = {
 };
 const OUTCOME: Record<string, string> = { completed: '完了', skipped: 'スキップ', abandoned: '中断', explored: '探索・観察' };
 const ASSIST: Record<string, string> = { independent: '自力', after_hint: 'ヒント後', after_demo: '実演後', not_completed: '未完了' };
+
+/** 完了した試行の内訳。九九は機械判定でないので、申告の内容と方法を書く */
+function detailOf(t: Session['trials'][number]): string {
+  if (t.question.taskType !== 'kuku_rehearsal') return ASSIST[t.result!.assistanceLevel];
+  const r = kukuReportOf(t);
+  return r ? `${r.said ? 'いえた' : 'まだ'}（${r.judgedBy === 'parent' ? '親判定' : '自己確認'}）` : '—';
+}
 
 function History({ store }: { store: Store }) {
   const sessions = store.data.sessions.slice().reverse();
@@ -429,7 +488,7 @@ function History({ store }: { store: Store }) {
                     <td>{t.question.operands.join(', ')}</td>
                     <td>
                       {t.result ? OUTCOME[t.result.outcome] : '—'}
-                      {t.result?.outcome === 'completed' ? `・${ASSIST[t.result.assistanceLevel]}` : ''}
+                      {t.result?.outcome === 'completed' ? `・${detailOf(t)}` : ''}
                     </td>
                     <td>{t.result?.maxHintLevel ? `L${t.result.maxHintLevel}` : ''}</td>
                     <td>{t.result?.mistakeCount || ''}</td>

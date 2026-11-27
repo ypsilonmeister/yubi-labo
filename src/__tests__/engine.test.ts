@@ -18,6 +18,7 @@ const MODES: Record<ModeId, TaskCategory[]> = {
   mode_j_geoboard: [],
   mode_k_shapemake: [],
   mode_l_arrays: ['array_multiply', 'array_divide', 'array_split', 'array_divide_rem'],
+  mode_m_kuku: [], // 選択肢のない課題。kuku.test.tsx で確かめる
 };
 
 describe('出題エンジン（§9.0・§10）', () => {

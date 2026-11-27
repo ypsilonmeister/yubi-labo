@@ -30,6 +30,7 @@ export const ALL_TASKS: readonly TaskCategory[] = [
   'shape_square',
   'shape_isosceles',
   'shape_area',
+  'kuku_rehearsal',
 ];
 
 export const ALL_MODES: readonly ModeId[] = [
@@ -45,4 +46,5 @@ export const ALL_MODES: readonly ModeId[] = [
   'mode_j_geoboard',
   'mode_k_shapemake',
   'mode_l_arrays',
+  'mode_m_kuku',
 ];
