@@ -14,6 +14,8 @@ export interface BridgeState {
   hintLevel: 0 | 1 | 2 | 3;
   hintCount: number;
   paused: boolean;
+  /** シェルが完了せずに試行を閉じた（とばした） */
+  closed: boolean;
 }
 
 type Handlers = { undo?: () => void; hint?: (level: 1 | 2 | 3) => void };
@@ -25,7 +27,7 @@ export class ModeBridge {
   private listeners = new Set<() => void>();
 
   constructor(settings: Readonly<AccessibilitySettings>) {
-    this.state = { question: null, qKey: 0, settings, hintLevel: 0, hintCount: 0, paused: false };
+    this.state = { question: null, qKey: 0, settings, hintLevel: 0, hintCount: 0, paused: false, closed: false };
   }
 
   set(patch: Partial<BridgeState>) {
@@ -89,7 +91,7 @@ export function createReactPlugin(meta: PluginMeta, View: ComponentType<{ bridge
       );
     },
     loadQuestion(q) {
-      bridge?.set({ question: q, qKey: (bridge.state.qKey ?? 0) + 1, hintLevel: 0, hintCount: 0, paused: false });
+      bridge?.set({ question: q, qKey: (bridge.state.qKey ?? 0) + 1, hintLevel: 0, hintCount: 0, paused: false, closed: false });
     },
     showHint(level) {
       if (!bridge) return;
@@ -107,6 +109,9 @@ export function createReactPlugin(meta: PluginMeta, View: ComponentType<{ bridge
     },
     applySettings(s) {
       bridge?.set({ settings: s });
+    },
+    closeTrial() {
+      bridge?.set({ closed: true });
     },
     destroy() {
       const r = root;

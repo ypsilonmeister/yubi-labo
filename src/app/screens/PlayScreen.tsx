@@ -179,6 +179,7 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   const skip = () => {
     if (paused) togglePause();
     handle.current?.close('skipped');
+    plugin.closeTrial?.();
   };
   const toggleNumbers = () => {
     engine.emitShell({ type: 'settings_changed', payload: { numberView: !showNumbers } });
@@ -317,16 +318,13 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
                 はじめから
               </button>
             ) : (
-              <button
-                type="button"
-                className="btn-main"
-                onClick={() => {
+              <KukuNextButton
+                done={done}
+                onNext={() => {
                   const n = kukuNext();
                   if (n) loadKuku(n.run, n.index);
                 }}
-              >
-                つぎへ
-              </button>
+              />
             )
           ) : chained ? (
             conts!.map((c) =>
@@ -378,6 +376,16 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
         />
       )}
     </div>
+  );
+}
+
+/** v2.16: M のつぎの式へ。「つぎへ」は申告のあとだけ。とばしたあとは別の移り方として見分けられるようにする（§9.11） */
+export function KukuNextButton({ done, onNext }: { done: Trial; onNext: () => void }) {
+  const skipped = done.result?.outcome === 'skipped';
+  return (
+    <button type="button" className={skipped ? 'btn-soft' : 'btn-main'} onClick={onNext}>
+      {skipped ? 'つぎの しきへ' : 'つぎへ'}
+    </button>
   );
 }
 

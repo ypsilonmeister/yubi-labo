@@ -215,6 +215,8 @@ export interface GameModePlugin {
   pause(): void;
   resume(): void;
   applySettings(settings: Readonly<AccessibilitySettings>): void;
+  /** v2.16: 試行を完了せずに閉じた（とばした）ことをモードに知らせ、決定の操作を閉じてもらう。次の loadQuestion で元に戻る */
+  closeTrial?(): void;
   destroy(): void;
 }
 

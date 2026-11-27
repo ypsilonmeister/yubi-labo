@@ -12,6 +12,8 @@ export interface KukuBoardProps {
   revealed: boolean;
   /** 「いえた／まだ」を押した（どちらを押したかは画面に出さない） */
   reported: boolean;
+  /** とばした（答えの確認と申告は閉じる。出していた答えはそのまま） */
+  skipped: boolean;
   hint: boolean;
   /** くだりの並びを見せる */
   sequence: boolean;
@@ -93,11 +95,18 @@ function AnchorHint({ pair: [dan, m], revealed }: { pair: KukuPair; revealed: bo
 
 export function KukuBoard(p: KukuBoardProps) {
   const [dan, m] = p.pair;
+  const prompt = p.skipped
+    ? 'この しきは とばしたよ'
+    : p.reported
+      ? 'きろく したよ'
+      : !p.revealed
+        ? 'こえに だして こたえてから、こたえを みよう'
+        : p.judge === 'parent'
+          ? 'きいていた おうちの ひとが おしてね'
+          : 'こえに だして いえたかな？';
   return (
     <div className="kuku">
-      <div className="mode-prompt">
-        {p.reported ? 'きろく したよ' : p.revealed ? (p.judge === 'parent' ? 'きいていた おうちの ひとが おしてね' : 'こえに だして いえたかな？') : 'こえに だして こたえてから、こたえを みよう'}
-      </div>
+      <div className="mode-prompt">{prompt}</div>
       {p.form === 'down' && (
         <div className="kuku-sequence-area">
           {p.sequence && <Sequence pair={p.pair} revealed={p.revealed} />}
@@ -123,7 +132,7 @@ export function KukuBoard(p: KukuBoardProps) {
       )}
       {p.hint && <AnchorHint pair={p.pair} revealed={p.revealed} />}
       <div className="kuku-actions">
-        {!p.revealed ? (
+        {p.skipped ? null : !p.revealed ? (
           <button type="button" className="btn-main big" onClick={p.onReveal}>
             こたえを みる
           </button>

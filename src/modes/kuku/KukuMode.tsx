@@ -1,6 +1,7 @@
 // Mode M：九九テストれんしゅう（v2.16・§9.11）。学校の口頭テストと同じ形（のぼり・くだり・バラバラ）の リハーサル。
 // 式を見て声で答え、「こたえを みる」で確かめて、「いえた／まだ」を自分で（親判定では聞いていた親が）押す。
-// 点・合否・順位・タイマー・効果音はない。1式が1試行。つぎの式へはシェルの「つぎへ」で本人が進む。
+// 点・合否・順位・タイマー・効果音はない。1式が1試行。つぎの式へはシェルのボタンで本人が進む
+// （申告のあとは「つぎへ」、とばしたあとは「つぎの しきへ」）。
 
 import { useEffect, useRef, useState } from 'react';
 import { createReactPlugin, useBridge, type ModeBridge } from '../kit/bridge';
@@ -39,8 +40,10 @@ function Task({ bridge, sequence, onSequence }: { bridge: ModeBridge; sequence: 
   core.onHint(() => {
     if (!seen.current) hinted.current = true;
   });
+  // とばして閉じた試行には記録が残らないので、画面でも答えの確認と申告を受けつけない
+  const closed = () => core.done.current || bridge.state.closed;
   core.onUndo(() => {
-    if (core.done.current || !revealed) return;
+    if (closed() || !revealed) return;
     core.ctx.emit({ type: 'undo' });
     setRevealed(false);
   });
@@ -61,14 +64,14 @@ function Task({ bridge, sequence, onSequence }: { bridge: ModeBridge; sequence: 
   useEffect(() => () => stopSpeaking(), []);
 
   const reveal = () => {
-    if (core.done.current || revealed) return;
+    if (closed() || revealed) return;
     seen.current = true;
     core.ctx.emit({ type: 'attempt', payload: { action: KUKU_REVEAL } });
     setRevealed(true);
   };
 
   const report = (said: boolean) => {
-    if (core.done.current || !revealed) return;
+    if (closed() || !revealed) return;
     core.done.current = true;
     setReported(true);
     core.ctx.emit({
@@ -87,6 +90,7 @@ function Task({ bridge, sequence, onSequence }: { bridge: ModeBridge; sequence: 
       judge={judge}
       revealed={revealed}
       reported={reported}
+      skipped={core.s.closed}
       hint={core.hintLevel >= 1}
       sequence={sequence}
       onReveal={reveal}

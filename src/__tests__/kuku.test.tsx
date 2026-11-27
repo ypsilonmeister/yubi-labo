@@ -13,6 +13,7 @@ import { DEFAULT_LEARNING, DEFAULT_SETTINGS } from '../core/settings';
 import { GameRegistry } from '../core/registry';
 import { registerModes } from '../modes/index';
 import { KukuBoard, type KukuBoardProps } from '../modes/kuku/KukuBoard';
+import { KukuNextButton } from '../app/screens/PlayScreen';
 import type { AppData, GameEvent, KukuForm, KukuJudge, Session, Trial, TrialResult } from '../core/types';
 
 registerModes();
@@ -236,7 +237,7 @@ describe('アンカーヒント', () => {
 
 const noop = () => {};
 const board = (o: Partial<KukuBoardProps>) =>
-  renderToStaticMarkup(<KukuBoard pair={[7, 8]} form="down" judge="self" revealed={false} reported={false} hint={false} sequence onReveal={noop} onReport={noop} onToggleSequence={noop} {...o} />);
+  renderToStaticMarkup(<KukuBoard pair={[7, 8]} form="down" judge="self" revealed={false} reported={false} skipped={false} hint={false} sequence onReveal={noop} onReport={noop} onToggleSequence={noop} {...o} />);
 /** 数のふだと答えの欄に出ている数（式そのもの・「−7」のような差は除く） */
 const shownValues = (html: string) => [...html.matchAll(/<span class="kuku-(?:chip(?: now)?|answer)"[^>]*>(?:= )?([^<]*)<\/span>/g)].map((m) => m[1]);
 const text = (html: string) => html.replace(/<[^>]*>/g, ' ');
@@ -273,7 +274,7 @@ describe('画面', () => {
   });
 
   it('点・合否・順位・タイマー・急かす言葉・残念な表現を出さない', () => {
-    for (const o of [{}, { revealed: true }, { revealed: true, reported: true }, { hint: true, judge: 'parent' as const }]) {
+    for (const o of [{}, { revealed: true }, { revealed: true, reported: true }, { skipped: true }, { hint: true, judge: 'parent' as const }]) {
       const t = text(board(o));
       for (const bad of ['てん', '点', 'ごうかく', 'ランク', 'びょう', '秒', 'タイム', 'ざんねん', 'がんばれ', 'あと すこし', 'はやく', '✕', '×印']) expect(t).not.toContain(bad);
     }
@@ -284,6 +285,26 @@ describe('画面', () => {
     expect(text(html)).not.toContain('まだ');
     expect(text(html)).not.toContain('いえた');
     expect(html).toContain('きろく したよ');
+  });
+
+  it('とばした式は答えの確認も申告もできず、「きろく したよ」を出さない', () => {
+    for (const judge of ['self', 'parent'] as const)
+      for (const revealed of [false, true]) {
+        const html = board({ judge, revealed, skipped: true });
+        expect(html).not.toContain('こたえを みる');
+        expect(html).not.toContain('kuku-report');
+        expect(html).not.toContain('きろく したよ');
+        expect(html).toContain('この しきは とばしたよ');
+        // 出していた答えはそのまま。見ていない答えは出さない
+        expect(html.includes('kuku-answer')).toBe(revealed);
+      }
+  });
+
+  it('「つぎへ」は申告のあとだけで、とばしたあとは「つぎの しきへ」になる', () => {
+    const next = (t: Trial) => text(renderToStaticMarkup(<KukuNextButton done={t} onNext={noop} />)).trim();
+    expect(next(trial(7, 8, true))).toBe('つぎへ');
+    expect(next(trial(7, 8, false))).toBe('つぎへ');
+    expect(next(trial(7, 8, true, { skipped: true }))).toBe('つぎの しきへ');
   });
 });
 
