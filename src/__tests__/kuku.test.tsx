@@ -287,11 +287,11 @@ describe('画面', () => {
     expect(html).toContain('きろく したよ');
   });
 
-  it('とばした式は答えの確認も申告もできず、「きろく したよ」を出さない', () => {
+  it('とばした式は答えを開けるが申告はできず、「きろく したよ」を出さない', () => {
     for (const judge of ['self', 'parent'] as const)
       for (const revealed of [false, true]) {
         const html = board({ judge, revealed, skipped: true });
-        expect(html).not.toContain('こたえを みる');
+        expect(html.includes('こたえを みる')).toBe(!revealed);
         expect(html).not.toContain('kuku-report');
         expect(html).not.toContain('きろく したよ');
         expect(html).toContain('この しきは とばしたよ');
@@ -300,11 +300,27 @@ describe('画面', () => {
       }
   });
 
-  it('「つぎへ」は申告のあとだけで、とばしたあとは「つぎの しきへ」になる', () => {
-    const next = (t: Trial) => text(renderToStaticMarkup(<KukuNextButton done={t} onNext={noop} />)).trim();
-    expect(next(trial(7, 8, true))).toBe('つぎへ');
-    expect(next(trial(7, 8, false))).toBe('つぎへ');
-    expect(next(trial(7, 8, true, { skipped: true }))).toBe('つぎの しきへ');
+  const next = (done: Trial, o: { answerShown?: boolean; ended?: boolean } = {}) =>
+    text(renderToStaticMarkup(<KukuNextButton done={done} answerShown={false} ended={false} onNext={noop} {...o} />)).trim();
+  const skippedTrial = () => trial(7, 8, true, { skipped: true });
+
+  it('とばした式は、答えを見ずに次へ進めない（段の終わりの「はじめから」も出ない）', () => {
+    for (const ended of [false, true]) expect(next(skippedTrial(), { ended })).toBe('');
+  });
+
+  it('とばした式は、答えを開けば申告なしで「つぎへ」が出る（記録は skipped のまま）', () => {
+    const t = skippedTrial();
+    expect(next(t, { answerShown: true })).toBe('つぎへ');
+    expect(next(t, { answerShown: true, ended: true })).toBe('はじめから');
+    expect(t.result?.outcome).toBe('skipped');
+    expect(kukuReportOf(t)).toBeNull();
+  });
+
+  it('申告した式は「つぎへ」、段の終わりは「はじめから」', () => {
+    for (const said of [true, false]) {
+      expect(next(trial(7, 8, said))).toBe('つぎへ');
+      expect(next(trial(7, 8, said), { ended: true })).toBe('はじめから');
+    }
   });
 });
 

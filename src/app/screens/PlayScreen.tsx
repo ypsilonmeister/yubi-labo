@@ -65,6 +65,8 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   learningRef.current = learning;
   const [question, setQuestion] = useState<Question | null>(null);
   const [done, setDone] = useState<Trial | null>(null);
+  // v2.16: とばしたあとに答えが開いている試行（M はこれがないと次の式へ進めない）
+  const [answerShownFor, setAnswerShownFor] = useState<string | null>(null);
   const [hintLevel, setHintLevel] = useState(0);
   const [paused, setPaused] = useState(false);
   const [showNumbers, setShowNumbers] = useState(false);
@@ -178,8 +180,9 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   };
   const skip = () => {
     if (paused) togglePause();
+    const trialId = handle.current?.trial.trialId ?? null;
     handle.current?.close('skipped');
-    plugin.closeTrial?.();
+    plugin.closeTrial?.(() => setAnswerShownFor(trialId));
   };
   const toggleNumbers = () => {
     engine.emitShell({ type: 'settings_changed', payload: { numberView: !showNumbers } });
@@ -313,19 +316,16 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
               けっかを みる
             </button>
           ) : kukuNext ? (
-            kukuEnded ? (
-              <button type="button" className="btn-soft" onClick={() => loadKuku(newKukuRun({ ...kukuRun.current!, id: uid('k-') }), 0)}>
-                はじめから
-              </button>
-            ) : (
-              <KukuNextButton
-                done={done}
-                onNext={() => {
-                  const n = kukuNext();
-                  if (n) loadKuku(n.run, n.index);
-                }}
-              />
-            )
+            <KukuNextButton
+              done={done}
+              answerShown={answerShownFor === done.trialId}
+              ended={kukuEnded}
+              onNext={() => {
+                if (kukuEnded) return loadKuku(newKukuRun({ ...kukuRun.current!, id: uid('k-') }), 0);
+                const n = kukuNext();
+                if (n) loadKuku(n.run, n.index);
+              }}
+            />
           ) : chained ? (
             conts!.map((c) =>
               c.key === 'more' && c.question ? (
@@ -379,12 +379,15 @@ export function PlayScreen({ spec, engine, settings, learning, pickContext, sess
   );
 }
 
-/** v2.16: M のつぎの式へ。「つぎへ」は申告のあとだけ。とばしたあとは別の移り方として見分けられるようにする（§9.11） */
-export function KukuNextButton({ done, onNext }: { done: Trial; onNext: () => void }) {
-  const skipped = done.result?.outcome === 'skipped';
+/**
+ * v2.16: M の次へ進むボタン（段の終わりでは「はじめから」）。答えを見るまで出さない（§9.11）。
+ * 申告で終わった式は答えを見たあと。とばした式は、答えが開いているときだけ。
+ */
+export function KukuNextButton({ done, answerShown, ended, onNext }: { done: Trial; answerShown: boolean; ended: boolean; onNext: () => void }) {
+  if (done.result?.outcome === 'skipped' && !answerShown) return null;
   return (
-    <button type="button" className={skipped ? 'btn-soft' : 'btn-main'} onClick={onNext}>
-      {skipped ? 'つぎの しきへ' : 'つぎへ'}
+    <button type="button" className={ended ? 'btn-soft' : 'btn-main'} onClick={onNext}>
+      {ended ? 'はじめから' : 'つぎへ'}
     </button>
   );
 }

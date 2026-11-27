@@ -16,6 +16,8 @@ export interface BridgeState {
   paused: boolean;
   /** シェルが完了せずに試行を閉じた（とばした） */
   closed: boolean;
+  /** 閉じた試行の画面に答えが出たことをシェルに知らせる */
+  onAnswerShown?: () => void;
 }
 
 type Handlers = { undo?: () => void; hint?: (level: 1 | 2 | 3) => void };
@@ -91,7 +93,7 @@ export function createReactPlugin(meta: PluginMeta, View: ComponentType<{ bridge
       );
     },
     loadQuestion(q) {
-      bridge?.set({ question: q, qKey: (bridge.state.qKey ?? 0) + 1, hintLevel: 0, hintCount: 0, paused: false, closed: false });
+      bridge?.set({ question: q, qKey: (bridge.state.qKey ?? 0) + 1, hintLevel: 0, hintCount: 0, paused: false, closed: false, onAnswerShown: undefined });
     },
     showHint(level) {
       if (!bridge) return;
@@ -110,8 +112,8 @@ export function createReactPlugin(meta: PluginMeta, View: ComponentType<{ bridge
     applySettings(s) {
       bridge?.set({ settings: s });
     },
-    closeTrial() {
-      bridge?.set({ closed: true });
+    closeTrial(onAnswerShown) {
+      bridge?.set({ closed: true, onAnswerShown });
     },
     destroy() {
       const r = root;

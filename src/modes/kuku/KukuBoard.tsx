@@ -12,7 +12,7 @@ export interface KukuBoardProps {
   revealed: boolean;
   /** 「いえた／まだ」を押した（どちらを押したかは画面に出さない） */
   reported: boolean;
-  /** とばした（答えの確認と申告は閉じる。出していた答えはそのまま） */
+  /** とばした（申告は閉じる。答えは開ける。出していた答えはそのまま） */
   skipped: boolean;
   hint: boolean;
   /** くだりの並びを見せる */
@@ -132,11 +132,12 @@ export function KukuBoard(p: KukuBoardProps) {
       )}
       {p.hint && <AnchorHint pair={p.pair} revealed={p.revealed} />}
       <div className="kuku-actions">
-        {p.skipped ? null : !p.revealed ? (
+        {!p.revealed ? (
           <button type="button" className="btn-main big" onClick={p.onReveal}>
             こたえを みる
           </button>
         ) : (
+          !p.skipped &&
           !p.reported && (
             // どちらも同じ見た目（まだ を よくないことに見せない §8.2）
             <>
